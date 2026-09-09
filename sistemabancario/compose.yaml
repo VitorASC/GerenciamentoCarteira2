@@ -1,0 +1,46 @@
+name: carteira-investimentos
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Defina POSTGRES_DB no arquivo .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER no arquivo .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  aplicacao:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: carteira-investimentos:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: postgresql
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: ${POSTGRES_DB:?Defina POSTGRES_DB no arquivo .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER no arquivo .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
+      APP_SECURITY_JWT_SECRET: ${APP_SECURITY_JWT_SECRET:?Defina APP_SECURITY_JWT_SECRET no arquivo .env}
+      APP_SECURITY_JWT_EXPIRATION_MS: ${APP_SECURITY_JWT_EXPIRATION_MS:-86400000}
+      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
+      ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY:-}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+volumes:
+  postgres_data:

@@ -8,6 +8,11 @@ target/
 !**/src/test/**/target/
 node_modules/
 
+# Ambiente local do Docker Compose
+.env
+.env.*
+!.env.example
+
 ### STS ###
 .apt_generated
 .classpath

@@ -1,6 +1,7 @@
 package com.projeto.sistemabancario.config.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -19,5 +20,16 @@ class JwtServiceTest {
 		assertThat(claims.getSubject()).isEqualTo("99");
 		assertThat(claims.get("email", String.class)).isEqualTo("user@test.local");
 		assertThat(claims.get("ativo", Boolean.class)).isTrue();
+	}
+
+	@Test
+	void rejeitaSecretHmacComMenosDe256BitsNaInicializacao() {
+		JwtProperties properties = new JwtProperties();
+		properties.setSecret("curta");
+
+		assertThatThrownBy(() -> new JwtService(properties))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("APP_SECURITY_JWT_SECRET")
+			.hasMessageContaining("32 bytes");
 	}
 }

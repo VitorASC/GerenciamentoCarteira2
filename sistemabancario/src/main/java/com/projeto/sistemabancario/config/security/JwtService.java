@@ -14,10 +14,22 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JwtService {
 
+	private static final int MINIMUM_HMAC_KEY_BYTES = 32;
+
 	private final JwtProperties properties;
+	private final SecretKey signingKey;
 
 	public JwtService(JwtProperties properties) {
 		this.properties = properties;
+		String secret = properties.getSecret();
+		if (secret == null || secret.isBlank()) {
+			throw new IllegalStateException("APP_SECURITY_JWT_SECRET deve ser definida");
+		}
+		byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+		if (keyBytes.length < MINIMUM_HMAC_KEY_BYTES) {
+			throw new IllegalStateException("APP_SECURITY_JWT_SECRET deve possuir pelo menos 32 bytes (256 bits)");
+		}
+		this.signingKey = Keys.hmacShaKeyFor(keyBytes);
 	}
 
 	public String gerarToken(Long usuarioId, String email, boolean ativo) {
@@ -30,20 +42,15 @@ public class JwtService {
 			.claim("ativo", ativo)
 			.issuedAt(issuedAt)
 			.expiration(expiresAt)
-			.signWith(signingKey())
+			.signWith(signingKey)
 			.compact();
 	}
 
 	public Claims parseClaims(String token) {
 		return Jwts.parser()
-			.verifyWith(signingKey())
+			.verifyWith(signingKey)
 			.build()
 			.parseSignedClaims(token)
 			.getPayload();
-	}
-
-	private SecretKey signingKey() {
-		byte[] keyBytes = properties.getSecret().getBytes(StandardCharsets.UTF_8);
-		return Keys.hmacShaKeyFor(keyBytes);
 	}
 }

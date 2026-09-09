@@ -11,12 +11,7 @@ Trabalho acadêmico desenvolvido para a disciplina de **Laboratório de Programa
 
 ### Equipe
 
-- Carlos Eduardo Colavite Lopes
-- Eduardo Berger Zaparoli
-- Guilherme França Dela Rovere
 - Vitor Antonio Scandelai Cabrera
-
----
 
 ## 1. Visão geral do projeto
 

@@ -1,0 +1,429 @@
+databaseChangeLog:
+  # Hibernate 7 maps EnumType.STRING to native ENUM columns on MySQL, while
+  # PostgreSQL and H2 use VARCHAR columns with CHECK constraints.
+  - property:
+      name: perfil-investidor-type
+      value: "ENUM('CONSERVADOR','MODERADO','ARROJADO')"
+      dbms: mysql
+  - property:
+      name: perfil-investidor-type
+      value: VARCHAR(24)
+      dbms: postgresql,h2
+  - property:
+      name: mercado-type
+      value: "ENUM('BRASIL','ESTADOS_UNIDOS')"
+      dbms: mysql
+  - property:
+      name: mercado-type
+      value: VARCHAR(32)
+      dbms: postgresql,h2
+  - property:
+      name: tipo-transacao-type
+      value: "ENUM('COMPRA','VENDA')"
+      dbms: mysql
+  - property:
+      name: tipo-transacao-type
+      value: VARCHAR(16)
+      dbms: postgresql,h2
+
+  - changeSet:
+      id: 001-01-create-usuarios
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: usuarios
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_usuarios
+                    nullable: false
+              - column:
+                  name: nome_completo
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: cpf
+                  type: VARCHAR(11)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: senha_hash
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: data_nascimento
+                  type: DATE
+              - column:
+                  name: perfil_investidor
+                  type: ${perfil-investidor-type}
+                  constraints:
+                    nullable: false
+                    checkConstraint: "perfil_investidor IN ('CONSERVADOR','MODERADO','ARROJADO')"
+              - column:
+                  name: data_criacao
+                  type: TIMESTAMP(6)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ativo
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 001-02-create-corretoras
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: corretoras
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_corretoras
+                    nullable: false
+              - column:
+                  name: cnpj
+                  type: VARCHAR(14)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: razao_social
+                  type: VARCHAR(1000)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: nome_fantasia
+                  type: VARCHAR(1000)
+              - column:
+                  name: email
+                  type: VARCHAR(512)
+              - column:
+                  name: telefone
+                  type: VARCHAR(128)
+              - column:
+                  name: cep
+                  type: VARCHAR(8)
+              - column:
+                  name: logradouro
+                  type: VARCHAR(1000)
+              - column:
+                  name: numero
+                  type: VARCHAR(64)
+              - column:
+                  name: complemento
+                  type: VARCHAR(1000)
+              - column:
+                  name: bairro
+                  type: VARCHAR(512)
+              - column:
+                  name: cidade
+                  type: VARCHAR(512)
+              - column:
+                  name: uf
+                  type: VARCHAR(2)
+              - column:
+                  name: situacao_cadastral
+                  type: VARCHAR(512)
+              - column:
+                  name: validada_na_cvm
+                  type: BOOLEAN
+                  constraints:
+                    nullable: false
+              - column:
+                  name: data_cadastro
+                  type: TIMESTAMP(6)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 001-03-create-acoes
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: acoes
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_acoes
+                    nullable: false
+              - column:
+                  name: ticker
+                  type: VARCHAR(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: nome_empresa
+                  type: VARCHAR(255)
+              - column:
+                  name: mercado
+                  type: ${mercado-type}
+                  constraints:
+                    nullable: false
+                    checkConstraint: "mercado IN ('BRASIL','ESTADOS_UNIDOS')"
+              - column:
+                  name: moeda
+                  type: VARCHAR(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: cotacao_atual
+                  type: DECIMAL(19,6)
+              - column:
+                  name: data_hora_cotacao
+                  type: TIMESTAMP(6)
+              - column:
+                  name: corretora_id
+                  type: BIGINT
+
+  - changeSet:
+      id: 001-04-create-carteiras-investimento
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: carteiras_investimento
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_carteiras_investimento
+                    nullable: false
+              - column:
+                  name: usuario_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: nome_da_carteira
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: saldo_total
+                  type: DECIMAL(19,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: rentabilidade_acumulada
+                  type: DECIMAL(19,6)
+              - column:
+                  name: data_criacao
+                  type: TIMESTAMP(6)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: corretora_id
+                  type: BIGINT
+
+  - changeSet:
+      id: 001-05-create-posicoes-carteira
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: posicoes_carteira
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_posicoes_carteira
+                    nullable: false
+              - column:
+                  name: carteira_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: acao_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: quantidade
+                  type: DECIMAL(19,8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: preco_medio_ponderado
+                  type: DECIMAL(19,6)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 001-06-create-transacoes
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: transacoes
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_transacoes
+                    nullable: false
+              - column:
+                  name: carteira_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: acao_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tipo
+                  type: ${tipo-transacao-type}
+                  constraints:
+                    nullable: false
+                    checkConstraint: "tipo IN ('COMPRA','VENDA')"
+              - column:
+                  name: quantidade
+                  type: DECIMAL(19,8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: preco_unitario
+                  type: DECIMAL(19,6)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: data_hora
+                  type: TIMESTAMP(6)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 001-07-create-historico-cotacoes
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: historico_cotacoes
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_historico_cotacoes
+                    nullable: false
+              - column:
+                  name: acao_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: valor
+                  type: DECIMAL(19,6)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: data_hora
+                  type: TIMESTAMP(6)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 001-08-add-unique-constraints
+      author: equipe-fef
+      changes:
+        - addUniqueConstraint:
+            tableName: usuarios
+            columnNames: cpf
+            constraintName: uk_usuario_cpf
+        - addUniqueConstraint:
+            tableName: usuarios
+            columnNames: email
+            constraintName: uk_usuario_email
+        - addUniqueConstraint:
+            tableName: corretoras
+            columnNames: cnpj
+            constraintName: uk_corretora_cnpj
+        - addUniqueConstraint:
+            tableName: acoes
+            columnNames: ticker
+            constraintName: uk_acao_ticker
+        - addUniqueConstraint:
+            tableName: posicoes_carteira
+            columnNames: carteira_id, acao_id
+            constraintName: uk_posicao_carteira_acao
+
+  - changeSet:
+      id: 001-09-add-foreign-keys
+      author: equipe-fef
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: acoes
+            baseColumnNames: corretora_id
+            referencedTableName: corretoras
+            referencedColumnNames: id
+            constraintName: fk_acoes_corretora
+        - addForeignKeyConstraint:
+            baseTableName: carteiras_investimento
+            baseColumnNames: usuario_id
+            referencedTableName: usuarios
+            referencedColumnNames: id
+            constraintName: fk_carteiras_usuario
+        - addForeignKeyConstraint:
+            baseTableName: carteiras_investimento
+            baseColumnNames: corretora_id
+            referencedTableName: corretoras
+            referencedColumnNames: id
+            constraintName: fk_carteiras_corretora
+        - addForeignKeyConstraint:
+            baseTableName: posicoes_carteira
+            baseColumnNames: carteira_id
+            referencedTableName: carteiras_investimento
+            referencedColumnNames: id
+            constraintName: fk_posicoes_carteira
+        - addForeignKeyConstraint:
+            baseTableName: posicoes_carteira
+            baseColumnNames: acao_id
+            referencedTableName: acoes
+            referencedColumnNames: id
+            constraintName: fk_posicoes_acao
+        - addForeignKeyConstraint:
+            baseTableName: transacoes
+            baseColumnNames: carteira_id
+            referencedTableName: carteiras_investimento
+            referencedColumnNames: id
+            constraintName: fk_transacoes_carteira
+        - addForeignKeyConstraint:
+            baseTableName: transacoes
+            baseColumnNames: acao_id
+            referencedTableName: acoes
+            referencedColumnNames: id
+            constraintName: fk_transacoes_acao
+        - addForeignKeyConstraint:
+            baseTableName: historico_cotacoes
+            baseColumnNames: acao_id
+            referencedTableName: acoes
+            referencedColumnNames: id
+            constraintName: fk_historico_cotacoes_acao

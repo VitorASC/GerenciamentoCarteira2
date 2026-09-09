@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1"/>
+	<title>FinFEF</title>
+	<link rel="stylesheet" th:href="@{/css/dashboard.css}"/>
+</head>
+<body>
+	<div class="theme-float" aria-hidden="false">
+		<button type="button" class="btn-icon theme-toggle js-theme-toggle" title="Alternar tema claro/escuro" aria-label="Tema claro ou escuro">
+			<span class="theme-icon theme-icon--sun" aria-hidden="true">☀</span>
+			<span class="theme-sep">/</span>
+			<span class="theme-icon theme-icon--moon" aria-hidden="true">☽</span>
+		</button>
+	</div>
+	<!-- Tela inicial: login / cadastro (sempre primeiro ao acessar o site) -->
+	<div id="screen-login" class="screen-login" aria-label="Autenticação">
+		<div class="login-backdrop"></div>
+		<div class="login-center">
+			<h1 class="brand-title">FinFEF</h1>
+			<p class="brand-tagline">Gestão de corretoras, ações e carteiras</p>
+			<div class="login-card card-elevated">
+				<div class="login-tabs" role="tablist">
+					<button type="button" class="login-tab login-tab--active" id="tab-login" data-tab="login" role="tab" aria-selected="true">Entrar</button>
+					<button type="button" class="login-tab" id="tab-register" data-tab="register" role="tab" aria-selected="false">Cadastrar</button>
+				</div>
+				<div id="login-panel-login" class="login-panel" role="tabpanel">
+					<form id="form-login" class="form-grid">
+						<label>E-mail <input type="email" name="email" required autocomplete="username"/></label>
+						<label>Senha <input type="password" name="senha" required autocomplete="current-password"/></label>
+						<button type="submit" class="btn-primary-wide">Entrar</button>
+					</form>
+					<p id="login-status" class="status" role="status"></p>
+				</div>
+				<div id="login-panel-register" class="login-panel" role="tabpanel" hidden>
+					<form id="form-register" class="form-grid">
+						<label>Nome completo <input type="text" name="nomeCompleto" required/></label>
+						<label>CPF (11 dígitos) <input type="text" name="cpf" required maxlength="11" pattern="\d{11}"/></label>
+						<label>E-mail <input type="email" name="email" required/></label>
+						<label>Senha <input type="password" name="senha" required minlength="6"/></label>
+						<label>Data de nascimento <input type="date" name="dataNascimento"/></label>
+						<label>Perfil
+							<select name="perfilInvestidor" required>
+								<option value="CONSERVADOR">CONSERVADOR</option>
+								<option value="MODERADO" selected>MODERADO</option>
+								<option value="ARROJADO">ARROJADO</option>
+							</select>
+						</label>
+						<button type="submit" class="btn-primary-wide">Criar conta</button>
+					</form>
+					<p id="register-status" class="status" role="status"></p>
+					<pre id="register-json-out" class="json-out json-out--compact" hidden></pre>
+				</div>
+			</div>
+			<p class="login-footnote">API REST · JWT · Integrações Brasil API, ViaCEP, CVM, BRAPI, Alpha Vantage</p>
+		</div>
+	</div>
+
+	<!-- Aplicação autenticada -->
+	<div id="screen-app" class="screen-app is-hidden" aria-hidden="true">
+		<header class="app-header">
+			<button type="button" id="btn-menu" class="btn-icon hamburger" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar"></button>
+			<span class="app-logo">FinFEF</span>
+			<div class="header-spacer"></div>
+			<button type="button" class="btn-icon theme-toggle js-theme-toggle" title="Alternar tema claro/escuro" aria-label="Tema claro ou escuro">
+				<span class="theme-icon theme-icon--sun" aria-hidden="true">☀</span>
+				<span class="theme-sep">/</span>
+				<span class="theme-icon theme-icon--moon" aria-hidden="true">☽</span>
+			</button>
+			<button type="button" id="btn-logout" class="btn-logout">Sair</button>
+		</header>
+		<div class="app-shell">
+			<div id="sidebar-backdrop" class="sidebar-backdrop is-hidden" aria-hidden="true"></div>
+			<aside id="sidebar" class="sidebar" aria-label="Menu principal">
+				<nav class="sidebar-nav">
+					<button type="button" class="sidebar-link sidebar-link--active" data-panel="corretoras">Corretoras</button>
+					<button type="button" class="sidebar-link" data-panel="acoes">Ações</button>
+					<button type="button" class="sidebar-link" data-panel="carteiras">Carteiras</button>
+					<button type="button" class="sidebar-link" data-panel="conta">Conta</button>
+				</nav>
+			</aside>
+			<main class="app-main">
+				<div class="main-head">
+					<h2 id="app-main-title" class="main-title">Corretoras</h2>
+					<p id="app-main-sub" class="main-subtitle">Informações referentes ao que foi selecionado no menu.</p>
+				</div>
+
+				<div id="panel-corretoras" class="panel panel--active" data-panel-id="corretoras">
+					<div class="card section">
+						<p class="hint">Integração Brasil API / CVM nos fluxos de cadastro.</p>
+						<div class="toolbar">
+							<button type="button" id="btn-corretoras-listar">Listar corretoras</button>
+						</div>
+						<form id="form-corretora-cadastro" class="form-grid wide">
+							<label>CNPJ <input type="text" name="cnpj" required placeholder="00.000.000/0001-00 ou só dígitos"/></label>
+							<label>CEP <input type="text" name="cep" required/></label>
+							<label>Número <input type="text" name="numero" placeholder="opcional"/></label>
+							<label>Complemento <input type="text" name="complemento" placeholder="opcional"/></label>
+							<button type="submit">Cadastrar corretora</button>
+						</form>
+						<form id="form-corretora-buscar-id" class="form-inline">
+							<label>ID <input type="number" name="id" min="1" required/></label>
+							<button type="submit">Buscar por ID</button>
+						</form>
+						<form id="form-corretora-buscar-cnpj" class="form-inline">
+							<label>CNPJ <input type="text" name="cnpj" required/></label>
+							<button type="submit">Buscar por CNPJ</button>
+						</form>
+						<h3 class="block-title">Excluir corretora</h3>
+						<p class="hint">Só é possível excluir corretoras que não estão vinculadas a ações ou carteiras.</p>
+						<form id="form-corretora-excluir" class="form-inline">
+							<label>ID da corretora <input type="number" name="id" min="1" required/></label>
+							<button type="submit" class="btn-danger">Excluir corretora</button>
+						</form>
+						<p id="corretoras-status" class="status" role="status"></p>
+						<div id="corretoras-out" class="table-wrap" hidden></div>
+						<pre id="corretoras-json" class="json-out" hidden></pre>
+					</div>
+				</div>
+
+				<div id="panel-acoes" class="panel" data-panel-id="acoes" hidden>
+					<div class="card section">
+						<p class="hint">Listagens e cadastro; atualização de cotação via integração. Mercado BRASIL: BRAPI — sem token só PETR4, VALE3, MGLU3 e ITUB4. EUA: Alpha Vantage (<code>ALPHAVANTAGE_API_KEY</code>).</p>
+						<div class="toolbar">
+							<button type="button" id="btn-acoes-listar">Listar ações</button>
+						</div>
+						<form id="form-acao-cadastro" class="form-grid wide">
+							<label>Ticker <input type="text" name="ticker" required placeholder="ex.: PETR4"/></label>
+							<label>Mercado
+								<select name="mercado" required>
+									<option value="BRASIL">BRASIL</option>
+									<option value="ESTADOS_UNIDOS">ESTADOS_UNIDOS</option>
+								</select>
+							</label>
+							<label>ID da corretora <input type="number" name="corretoraId" min="1" placeholder="opcional"/></label>
+							<button type="submit">Cadastrar ação</button>
+						</form>
+						<form id="form-acao-buscar-id" class="form-inline">
+							<label>ID <input type="number" name="id" min="1" required/></label>
+							<button type="submit">Buscar por ID</button>
+						</form>
+						<form id="form-acao-buscar-ticker" class="form-inline">
+							<label>Ticker <input type="text" name="ticker" required/></label>
+							<button type="submit">Buscar por ticker</button>
+						</form>
+						<form id="form-acao-atualizar-cotacao" class="form-inline">
+							<label>ID da ação <input type="number" name="id" min="1" required/></label>
+							<button type="submit">Atualizar cotação</button>
+						</form>
+						<h3 class="block-title">Excluir ação</h3>
+						<p class="hint">Só é possível excluir ações sem posições em carteiras nem transações registradas.</p>
+						<form id="form-acao-excluir" class="form-inline">
+							<label>ID da ação <input type="number" name="id" min="1" required/></label>
+							<button type="submit" class="btn-danger">Excluir ação</button>
+						</form>
+						<h3 class="block-title">Histórico de cotações (gráfico)</h3>
+						<form id="form-chart" class="form-inline">
+							<label>ID da ação <input type="number" name="acaoId" min="1" required placeholder="ex.: 1"/></label>
+							<button type="submit">Carregar histórico</button>
+						</form>
+						<p id="chart-status" class="status" role="status"></p>
+						<div class="chart-wrap">
+							<canvas id="chart-cotacoes" width="900" height="360"></canvas>
+						</div>
+						<p id="acoes-status" class="status" role="status"></p>
+						<div id="acoes-out" class="table-wrap" hidden></div>
+						<pre id="acoes-json" class="json-out" hidden></pre>
+					</div>
+				</div>
+
+				<div id="panel-carteiras" class="panel" data-panel-id="carteiras" hidden>
+					<div class="card section">
+						<p class="hint">Operações usam o usuário autenticado; use o ID do usuário logado nos formulários.</p>
+						<div class="toolbar">
+							<button type="button" id="btn-carteiras-listar">Minhas carteiras</button>
+						</div>
+						<h3 class="block-title">Nova carteira</h3>
+						<form id="form-carteira-cadastro" class="form-grid wide">
+							<label>ID do usuário <input type="number" name="usuarioId" min="1" required id="carteira-usuario-id"/></label>
+							<label>Nome da carteira <input type="text" name="nomeDaCarteira" required/></label>
+							<label>ID da corretora <input type="number" name="corretoraId" min="1" placeholder="opcional"/></label>
+							<label>Saldo inicial <input type="text" name="saldoInicial" placeholder="ex.: 10000.00"/></label>
+							<button type="submit">Criar carteira</button>
+						</form>
+						<form id="form-carteira-buscar-id" class="form-inline">
+							<label>ID da carteira <input type="number" name="id" min="1" required/></label>
+							<button type="submit">Buscar por ID</button>
+						</form>
+						<form id="form-carteira-por-usuario" class="form-inline">
+							<label>ID do usuário <input type="number" name="usuarioId" min="1" required id="carteira-list-usuario-id"/></label>
+							<button type="submit">Listar por usuário</button>
+						</form>
+						<h3 class="block-title">Atualizar carteira</h3>
+						<form id="form-carteira-atualizar" class="form-grid wide">
+							<label>ID da carteira <input type="number" name="id" min="1" required/></label>
+							<label>Nome <input type="text" name="nomeDaCarteira" placeholder="opcional"/></label>
+							<label>ID da corretora <input type="number" name="corretoraId" min="1" placeholder="opcional"/></label>
+							<button type="submit">Salvar alterações</button>
+						</form>
+						<h3 class="block-title">Compra</h3>
+						<p class="hint">Na compra, o servidor usa a <strong>cotação ao vivo</strong>; o valor abaixo é estimativa pelo cadastro.</p>
+						<form id="form-compra" class="form-grid wide">
+							<label>ID da carteira <input type="number" name="carteiraId" min="1" required/></label>
+							<label>ID da ação <input type="number" name="acaoId" min="1" required id="compra-acao-id"/></label>
+							<label>Quantidade <input type="text" name="quantidade" required placeholder="ex.: 10" id="compra-quantidade"/></label>
+							<label>Cotação no cadastro (estimativa)
+								<input type="text" id="compra-preco-display" readonly tabindex="-1" placeholder="Atualiza ao informar o ID da ação" aria-live="polite"/>
+							</label>
+						<p class="hint" id="compra-custo-par">Custo estimado (cadastro): <strong id="compra-custo-total">—</strong></p>
+							<button type="submit">Registrar compra</button>
+						</form>
+						<h3 class="block-title">Venda</h3>
+						<p class="hint">O crédito no saldo usa a <strong>cotação ao vivo</strong> no momento da venda.</p>
+						<form id="form-venda" class="form-grid wide">
+							<label>ID da carteira <input type="number" name="carteiraId" min="1" required/></label>
+							<label>ID da ação <input type="number" name="acaoId" min="1" required/></label>
+							<label>Quantidade <input type="text" name="quantidade" required/></label>
+							<button type="submit">Registrar venda</button>
+						</form>
+						<h3 class="block-title">Indicadores</h3>
+						<p class="hint"><strong>Por ticker</strong>: preço médio e valores custo/mercado. <strong>Média da carteira</strong>: soma dos valores de mercado ÷ quantidade total de papéis.</p>
+						<form id="form-indicador-ticker" class="form-inline wide">
+							<label>ID da carteira <input type="number" name="carteiraId" min="1" required placeholder="ex.: 1"/></label>
+							<label>Ticker <input type="text" name="ticker" required placeholder="PETR4"/></label>
+							<button type="submit">Indicador por ticker</button>
+						</form>
+						<form id="form-indicador-media-carteira" class="form-inline wide">
+							<label>ID da carteira <input type="number" name="carteiraId" min="1" required placeholder="ex.: 1" id="indicador-media-carteira-id"/></label>
+							<button type="submit">Média da carteira inteira</button>
+						</form>
+						<h3 class="block-title">Excluir carteira</h3>
+						<p class="hint">A carteira só pode ser excluída com <strong>saldo zerado</strong> e sem ações em posição (venda tudo antes).</p>
+						<form id="form-carteira-excluir" class="form-inline">
+							<label>ID da carteira <input type="number" name="id" min="1" required/></label>
+							<button type="submit" class="btn-danger">Excluir carteira</button>
+						</form>
+						<p id="carteiras-status" class="status" role="status"></p>
+						<div id="carteiras-out" class="table-wrap" hidden></div>
+						<pre id="carteiras-json" class="json-out" hidden></pre>
+					</div>
+				</div>
+
+				<div id="panel-conta" class="panel" data-panel-id="conta" hidden>
+					<div class="card section">
+						<h3 class="block-title">Sessão</h3>
+						<p class="hint">Token JWT armazenado no navegador após o login.</p>
+						<p id="jwt-summary" class="hint mono jwt-box">—</p>
+					</div>
+					<div class="card section">
+						<h3 class="block-title">Usuários</h3>
+						<p class="hint">Consultas e atualizações conforme permissões da API.</p>
+						<div class="toolbar">
+							<button type="button" id="btn-usuarios-listar">Listar usuários</button>
+						</div>
+						<form id="form-usuario-buscar-id" class="form-inline">
+							<label>ID <input type="number" name="id" min="1" required placeholder="ex.: 1"/></label>
+							<button type="submit">Buscar por ID</button>
+						</form>
+						<form id="form-usuario-buscar-cpf" class="form-inline">
+							<label>CPF <input type="text" name="cpf" maxlength="14" placeholder="somente dígitos"/></label>
+							<button type="submit">Buscar por CPF</button>
+						</form>
+						<h3 class="block-title">Atualizar meu cadastro</h3>
+						<form id="form-usuario-atualizar" class="form-grid wide">
+							<label>ID do usuário <input type="number" name="id" min="1" required id="usuario-update-id"/></label>
+							<label>Nome completo <input type="text" name="nomeCompleto" placeholder="opcional"/></label>
+							<label>E-mail <input type="email" name="email" placeholder="opcional"/></label>
+							<label>Perfil
+								<select name="perfilInvestidor">
+									<option value="">— não alterar —</option>
+									<option value="CONSERVADOR">CONSERVADOR</option>
+									<option value="MODERADO">MODERADO</option>
+									<option value="ARROJADO">ARROJADO</option>
+								</select>
+							</label>
+							<label>Conta ativa
+								<select name="ativoOpt">
+									<option value="">— não alterar —</option>
+									<option value="true">Ativo</option>
+									<option value="false">Inativo</option>
+								</select>
+							</label>
+							<button type="submit">Salvar alterações</button>
+						</form>
+						<p id="usuarios-status" class="status" role="status"></p>
+						<div id="usuarios-out" class="table-wrap" hidden></div>
+						<pre id="usuarios-json" class="json-out" hidden></pre>
+					</div>
+				</div>
+			</main>
+		</div>
+	</div>
+
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+	<script th:src="@{/js/dashboard.js}"></script>
+</body>
+</html>

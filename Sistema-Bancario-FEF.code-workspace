@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "sistemabancario",
+			"name": "sistemabancario (Spring Boot)"
+		}
+	],
+	"settings": {
+		"java.configuration.updateBuildConfiguration": "automatic",
+		"java.import.maven.enabled": true,
+		"java.compile.nullAnalysis.mode": "automatic"
+	}
+}

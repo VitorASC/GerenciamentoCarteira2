@@ -1,0 +1,25 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "spring-boot:run (repositório na raiz)",
+			"type": "shell",
+			"command": "mvn -q -pl sistemabancario spring-boot:run",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "spring-boot:run (workspace só sistemabancario)",
+			"type": "shell",
+			"command": "mvn -q spring-boot:run",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build",
+			"problemMatcher": []
+		}
+	]
+}

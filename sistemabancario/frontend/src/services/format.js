@@ -9,6 +9,46 @@ export function esc(s) {
 	return String(s);
 }
 
+const MONEY_FORMATTER = new Intl.NumberFormat("pt-BR", {
+	style: "currency",
+	currency: "BRL",
+	minimumFractionDigits: 2,
+	maximumFractionDigits: 2,
+});
+
+const NUMBER_FORMATTER = new Intl.NumberFormat("pt-BR", {
+	minimumFractionDigits: 0,
+	maximumFractionDigits: 8,
+});
+
+export function formatMoney(value) {
+	const number = Number(value);
+	if (!Number.isFinite(number)) return "—";
+	const formatted = MONEY_FORMATTER.format(Math.abs(number));
+	return number < 0 ? "-" + formatted : formatted;
+}
+
+export function formatNumber(value) {
+	const number = Number(value);
+	return Number.isFinite(number) ? NUMBER_FORMATTER.format(number) : "—";
+}
+
+export function formatPercent(value) {
+	const number = Number(value);
+	if (!Number.isFinite(number)) return "—";
+	const sign = number > 0 ? "+" : "";
+	return sign + number.toLocaleString("pt-BR", {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}) + "%";
+}
+
+export function valueTone(value) {
+	const number = Number(value);
+	if (!Number.isFinite(number) || number === 0) return "neutral";
+	return number > 0 ? "positive" : "negative";
+}
+
 export function parseJwtPayload(token) {
 	if (!token) {
 		return null;

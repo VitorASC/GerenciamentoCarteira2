@@ -4,10 +4,13 @@ import AcoesPanel from "../panels/AcoesPanel";
 import CarteirasPanel from "../panels/CarteirasPanel";
 import ContaPanel from "../panels/ContaPanel";
 import CorretorasPanel from "../panels/CorretorasPanel";
+import DashboardPanel from "../panels/DashboardPanel";
+import { api } from "../services/api";
 import AppHeader from "./AppHeader";
 import Sidebar from "./Sidebar";
 
 const PANEL_META = {
+	dashboard: { title: "Dashboard" },
 	corretoras: {
 		title: "Corretoras",
 		sub: "Cadastro e consulta com Brasil API e validação CVM.",
@@ -27,11 +30,25 @@ const PANEL_META = {
 };
 
 export default function AppShell({ onToggleTheme }) {
-	const { logout } = useAuth();
-	const [activePanel, setActivePanel] = useState("corretoras");
+	const { logout, payload, usuarioId } = useAuth();
+	const [activePanel, setActivePanel] = useState("dashboard");
 	const [sidebarOpen, setSidebarOpen] = useState(false);
+	const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+		try { return localStorage.getItem("gestaoativa.sidebar-collapsed") === "true"; }
+		catch (_) { return false; }
+	});
+	const [user, setUser] = useState(() => ({ email: payload?.email || "" }));
 
-	const meta = PANEL_META[activePanel] || PANEL_META.corretoras;
+	const meta = PANEL_META[activePanel] || PANEL_META.dashboard;
+
+	useEffect(() => {
+		if (!usuarioId) return;
+		let active = true;
+		api("GET", "/usuarios/" + encodeURIComponent(usuarioId))
+			.then((data) => { if (active) setUser(data); })
+			.catch(() => { if (active) setUser({ email: payload?.email || "" }); });
+		return () => { active = false; };
+	}, [usuarioId, payload?.email]);
 
 	useEffect(() => {
 		if (sidebarOpen) {
@@ -55,30 +72,37 @@ export default function AppShell({ onToggleTheme }) {
 		setSidebarOpen(false);
 	}, []);
 
+	const handleToggleCollapsed = useCallback(() => {
+		setSidebarCollapsed((current) => {
+			const next = !current;
+			try { localStorage.setItem("gestaoativa.sidebar-collapsed", String(next)); } catch (_) { /* ignore */ }
+			return next;
+		});
+	}, []);
+
 	return (
-		<div id="screen-app" className="screen-app" aria-hidden="false">
-			<AppHeader
-				onToggleMenu={handleToggleMenu}
+		<div id="screen-app" className={"screen-app" + (sidebarCollapsed ? " screen-app--collapsed" : "")} aria-hidden="false">
+			<Sidebar
+				activePanel={activePanel}
+				onSelect={handleSelect}
 				sidebarOpen={sidebarOpen}
-				onToggleTheme={onToggleTheme}
-				onLogout={logout}
+				onBackdropClick={handleBackdrop}
+				collapsed={sidebarCollapsed}
+				onToggleCollapsed={handleToggleCollapsed}
 			/>
-			<div className="app-shell">
-				<Sidebar
-					activePanel={activePanel}
-					onSelect={handleSelect}
+			<div className="app-workspace">
+				<AppHeader
+					title={meta.title}
+					user={user}
+					onToggleMenu={handleToggleMenu}
 					sidebarOpen={sidebarOpen}
-					onBackdropClick={handleBackdrop}
+					onToggleTheme={onToggleTheme}
+					onLogout={logout}
 				/>
 				<main className="app-main">
-					<div className="main-head">
-						<h2 id="app-main-title" className="main-title">
-							{meta.title}
-						</h2>
-						<p id="app-main-sub" className="main-subtitle">
-							{meta.sub}
-						</p>
-					</div>
+					<PanelContainer panel="dashboard" active={activePanel}>
+						<DashboardPanel onNavigate={handleSelect} />
+					</PanelContainer>
 					<PanelContainer panel="corretoras" active={activePanel}>
 						<CorretorasPanel />
 					</PanelContainer>

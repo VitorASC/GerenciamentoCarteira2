@@ -56,6 +56,9 @@ public class BrasilApiCnpjClient implements CnpjConsultationPort {
 					body.uf()));
 		}
 		catch (RestClientResponseException ex) {
+			if (ex.getStatusCode().value() == 429) {
+				throw new ExternalIntegrationException("BrasilAPI atingiu o limite de requisições (HTTP 429)", ex);
+			}
 			if (ex.getStatusCode().is4xxClientError()) {
 				return Optional.empty();
 			}

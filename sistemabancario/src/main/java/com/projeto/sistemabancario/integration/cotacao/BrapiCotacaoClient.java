@@ -130,6 +130,9 @@ class BrapiCotacaoClient {
 		}
 		catch (RestClientResponseException ex) {
 			int status = ex.getStatusCode().value();
+			if (status == 429) {
+				throw new ExternalIntegrationException("BRAPI atingiu o limite de requisições (HTTP 429)", ex);
+			}
 			if (status == 401 || status == 403) {
 				boolean autenticado = token != null;
 				if (!autenticado) {
@@ -149,6 +152,9 @@ class BrapiCotacaoClient {
 				return Optional.empty();
 			}
 			throw new ExternalIntegrationException("Falha ao consultar cotação na BRAPI", ex);
+		}
+		catch (RegraNegocioException ex) {
+			throw ex;
 		}
 		catch (Exception ex) {
 			throw new ExternalIntegrationException("Erro inesperado ao consultar cotação na BRAPI", ex);

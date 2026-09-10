@@ -45,8 +45,8 @@ public class CorretoraService {
 	@Transactional
 	public CorretoraResponse cadastrar(CorretoraCadastroRequest request) {
 		String cnpj = Documentos.apenasDigitos(request.cnpj());
-		if (cnpj.length() != 14) {
-			throw new RegraNegocioException("CNPJ deve conter 14 dígitos.");
+		if (!Documentos.cnpjValido(request.cnpj())) {
+			throw new RegraNegocioException("CNPJ inválido.");
 		}
 		if (corretoraRepository.existsByCnpj(cnpj)) {
 			throw new DuplicateResourceException("Já existe corretora cadastrada com este CNPJ.");

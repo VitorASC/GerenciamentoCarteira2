@@ -3,6 +3,7 @@ package com.projeto.sistemabancario.integration.cotacao;
 import java.util.Optional;
 
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,18 @@ public class RoutingCotacaoClient implements CotacaoConsultationPort {
 			key = "#mercado.name() + '_' + (#ticker != null ? #ticker.toUpperCase() : '')",
 			unless = "T(org.springframework.util.ObjectUtils).isEmpty(#result)")
 	public Optional<CotacaoConsultaResult> buscar(Mercado mercado, String ticker) {
+		return consultarCliente(mercado, ticker);
+	}
+
+	@Override
+	@CachePut(cacheNames = CacheNames.COTACAO,
+			key = "#mercado.name() + '_' + (#ticker != null ? #ticker.toUpperCase() : '')",
+			unless = "T(org.springframework.util.ObjectUtils).isEmpty(#result)")
+	public Optional<CotacaoConsultaResult> buscarAtualizada(Mercado mercado, String ticker) {
+		return consultarCliente(mercado, ticker);
+	}
+
+	private Optional<CotacaoConsultaResult> consultarCliente(Mercado mercado, String ticker) {
 		if (ticker == null || ticker.isBlank()) {
 			return Optional.empty();
 		}

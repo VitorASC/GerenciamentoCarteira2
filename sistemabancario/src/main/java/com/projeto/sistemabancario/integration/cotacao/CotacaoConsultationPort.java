@@ -8,4 +8,6 @@ import com.projeto.sistemabancario.domains.enums.Mercado;
 public interface CotacaoConsultationPort {
 
 	Optional<CotacaoConsultaResult> buscar(Mercado mercado, String ticker);
+
+	Optional<CotacaoConsultaResult> buscarAtualizada(Mercado mercado, String ticker);
 }

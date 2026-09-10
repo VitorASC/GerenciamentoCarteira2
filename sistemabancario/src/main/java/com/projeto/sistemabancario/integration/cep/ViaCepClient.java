@@ -46,6 +46,9 @@ public class ViaCepClient implements CepConsultationPort {
 					body.uf()));
 		}
 		catch (RestClientResponseException ex) {
+			if (ex.getStatusCode().value() == 429) {
+				throw new ExternalIntegrationException("ViaCEP atingiu o limite de requisições (HTTP 429)", ex);
+			}
 			if (ex.getStatusCode().is4xxClientError()) {
 				return Optional.empty();
 			}

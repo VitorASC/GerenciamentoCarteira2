@@ -106,6 +106,9 @@ class AlphaVantageCotacaoClient {
 		}
 		catch (RestClientResponseException ex) {
 			int status = ex.getStatusCode().value();
+			if (status == 429) {
+				throw new ExternalIntegrationException("Alpha Vantage atingiu o limite de requisições (HTTP 429)", ex);
+			}
 			if (status == 401 || status == 403) {
 				throw new RegraNegocioException(
 						"Alpha Vantage recusou a requisição (HTTP " + status + "). Verifique ALPHAVANTAGE_API_KEY / integration.alpha-vantage.api-key.");
@@ -114,6 +117,9 @@ class AlphaVantageCotacaoClient {
 				return Optional.empty();
 			}
 			throw new ExternalIntegrationException("Falha ao consultar cotação na Alpha Vantage", ex);
+		}
+		catch (RegraNegocioException ex) {
+			throw ex;
 		}
 		catch (Exception ex) {
 			throw new ExternalIntegrationException("Erro inesperado ao consultar cotação na Alpha Vantage", ex);

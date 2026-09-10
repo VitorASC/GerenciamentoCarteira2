@@ -1,6 +1,7 @@
 package com.projeto.sistemabancario.integration.cnpj;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
 import com.projeto.sistemabancario.integration.config.IntegrationProperties;
+import com.projeto.sistemabancario.integration.exception.ExternalIntegrationException;
 
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -74,5 +76,14 @@ class BrasilApiCnpjClientMockWebServerTest {
 		server.enqueue(new MockResponse().setResponseCode(404));
 
 		assertThat(client.consultar("12345678000195")).isEmpty();
+	}
+
+	@Test
+	void consultarCnpj429SinalizaFalhaExterna() {
+		server.enqueue(new MockResponse().setResponseCode(429));
+
+		assertThatThrownBy(() -> client.consultar("11222333000181"))
+			.isInstanceOf(ExternalIntegrationException.class)
+			.hasMessageContaining("429");
 	}
 }

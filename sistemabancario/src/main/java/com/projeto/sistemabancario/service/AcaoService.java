@@ -102,7 +102,7 @@ public class AcaoService {
 		Acao acao = acaoRepository.findById(id)
 			.orElseThrow(() -> new ResourceNotFoundException("Ação não encontrada."));
 
-		var cotacao = cotacaoConsultationPort.buscar(acao.getMercado(), acao.getTicker()).orElseThrow(
+		var cotacao = cotacaoConsultationPort.buscarAtualizada(acao.getMercado(), acao.getTicker()).orElseThrow(
 				() -> new RegraNegocioException("Não foi possível obter cotação atualizada nas APIs externas."));
 
 		LocalDateTime dataHora = LocalDateTime.ofInstant(cotacao.dataHoraReferencia(), ZoneId.systemDefault());

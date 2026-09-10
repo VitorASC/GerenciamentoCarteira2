@@ -9,7 +9,7 @@ public record CarteiraResponse(
 		Long usuarioId,
 		String nomeDaCarteira,
 		BigDecimal saldoTotal,
-		BigDecimal rentabilidadeAcumulada,
+		BigDecimal lucroPrejuizoRealizado,
 		Long corretoraId,
 		LocalDateTime dataCriacao,
 		List<PosicaoCarteiraResponse> posicoes) {

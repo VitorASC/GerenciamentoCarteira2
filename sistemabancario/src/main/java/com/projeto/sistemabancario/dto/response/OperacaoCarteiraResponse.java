@@ -14,5 +14,5 @@ public record OperacaoCarteiraResponse(
 		BigDecimal precoUnitario,
 		LocalDateTime dataHora,
 		BigDecimal saldoCarteiraApos,
-		BigDecimal rentabilidadeAcumuladaCarteira) {
+		BigDecimal lucroPrejuizoRealizadoCarteira) {
 }

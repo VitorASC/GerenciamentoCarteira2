@@ -63,7 +63,7 @@ public class CarteiraService {
 		c.setUsuario(usuario);
 		c.setNomeDaCarteira(request.nomeDaCarteira().trim());
 		c.setSaldoTotal(saldoInicial.setScale(2, RoundingMode.HALF_UP));
-		c.setRentabilidadeAcumulada(BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP));
+		c.setLucroPrejuizoRealizado(BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP));
 		c.setDataCriacao(LocalDateTime.now());
 
 		if (request.corretoraId() != null) {
@@ -146,7 +146,7 @@ public class CarteiraService {
 				c.getUsuario().getId(),
 				c.getNomeDaCarteira(),
 				c.getSaldoTotal(),
-				c.getRentabilidadeAcumulada(),
+				c.getLucroPrejuizoRealizado(),
 				corretoraId,
 				c.getDataCriacao(),
 				List.of());
@@ -160,7 +160,7 @@ public class CarteiraService {
 				c.getUsuario().getId(),
 				c.getNomeDaCarteira(),
 				c.getSaldoTotal(),
-				c.getRentabilidadeAcumulada(),
+				c.getLucroPrejuizoRealizado(),
 				corretoraId,
 				c.getDataCriacao(),
 				posicoes);

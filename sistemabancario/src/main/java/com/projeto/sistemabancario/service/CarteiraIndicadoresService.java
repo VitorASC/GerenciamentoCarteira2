@@ -62,10 +62,6 @@ public class CarteiraIndicadoresService {
 		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId);
 
 		List<PosicaoCarteira> linhas = posicaoCarteiraRepository.findAllByCarteiraIdWithAcao(carteira.getId());
-		if (linhas.isEmpty()) {
-			throw new RegraNegocioException("A carteira não possui posições em ações.");
-		}
-
 		List<PosicaoIndicadorMercadoResponse> detalhes = new ArrayList<>();
 		BigDecimal custoTotal = BigDecimal.ZERO;
 		BigDecimal mercadoTotal = BigDecimal.ZERO;
@@ -88,12 +84,21 @@ public class CarteiraIndicadoresService {
 			quantidadeTotalTitulos = quantidadeTotalTitulos.add(um.quantidade(), MC);
 		}
 
-		if (detalhes.isEmpty()) {
-			throw new RegraNegocioException("Não há quantidades positivas nas posições desta carteira.");
+		int n = detalhes.size();
+		BigDecimal mediaPrecoMedioPonderado = BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP);
+		BigDecimal mediaValorMercadoPorTitulo = BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP);
+		if (quantidadeTotalTitulos.compareTo(BigDecimal.ZERO) > 0) {
+			mediaPrecoMedioPonderado = custoTotal.divide(quantidadeTotalTitulos, 6, RoundingMode.HALF_UP);
+			mediaValorMercadoPorTitulo = mercadoTotal.divide(quantidadeTotalTitulos, 6, RoundingMode.HALF_UP);
 		}
 
-		int n = detalhes.size();
-		BigDecimal mediaValorMercadoPorTitulo = mercadoTotal.divide(quantidadeTotalTitulos, 6, RoundingMode.HALF_UP);
+		BigDecimal rentabilidadeNaoRealizadaPercentual = BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP);
+		if (custoTotal.compareTo(BigDecimal.ZERO) > 0) {
+			rentabilidadeNaoRealizadaPercentual = mercadoTotal.subtract(custoTotal, MC)
+				.divide(custoTotal, 8, RoundingMode.HALF_UP)
+				.multiply(BigDecimal.valueOf(100), MC)
+				.setScale(6, RoundingMode.HALF_UP);
+		}
 
 		return new IndicadorMediaCarteiraResponse(
 				carteira.getId(),
@@ -101,7 +106,9 @@ public class CarteiraIndicadoresService {
 				quantidadeTotalTitulos.setScale(8, RoundingMode.HALF_UP),
 				custoTotal.setScale(2, RoundingMode.HALF_UP),
 				mercadoTotal.setScale(2, RoundingMode.HALF_UP),
+				mediaPrecoMedioPonderado,
 				mediaValorMercadoPorTitulo,
+				rentabilidadeNaoRealizadaPercentual,
 				detalhes);
 	}
 

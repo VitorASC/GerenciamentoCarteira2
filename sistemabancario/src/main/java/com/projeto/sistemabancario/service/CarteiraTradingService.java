@@ -133,8 +133,8 @@ public class CarteiraTradingService {
 		BigDecimal lucroRealizado = quantidade.multiply(precoVenda.subtract(pm, MC), MC);
 
 		carteira.setSaldoTotal(carteira.getSaldoTotal().add(liquido).setScale(2, RoundingMode.HALF_UP));
-		carteira.setRentabilidadeAcumulada(
-				carteira.getRentabilidadeAcumulada().add(lucroRealizado).setScale(6, RoundingMode.HALF_UP));
+		carteira.setLucroPrejuizoRealizado(
+				carteira.getLucroPrejuizoRealizado().add(lucroRealizado).setScale(6, RoundingMode.HALF_UP));
 
 		if (qRestante.compareTo(BigDecimal.ZERO) <= 0) {
 			carteira.getPosicoes().remove(posicao);
@@ -191,6 +191,6 @@ public class CarteiraTradingService {
 				t.getPrecoUnitario(),
 				t.getDataHora(),
 				carteira.getSaldoTotal(),
-				carteira.getRentabilidadeAcumulada());
+				carteira.getLucroPrejuizoRealizado());
 	}
 }

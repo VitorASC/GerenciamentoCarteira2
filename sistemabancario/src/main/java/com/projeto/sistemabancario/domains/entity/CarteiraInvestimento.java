@@ -35,8 +35,8 @@ public class CarteiraInvestimento {
 	@Column(nullable = false, precision = 19, scale = 2)
 	private BigDecimal saldoTotal = BigDecimal.ZERO;
 
-	@Column(precision = 19, scale = 6)
-	private BigDecimal rentabilidadeAcumulada = BigDecimal.ZERO;
+	@Column(name = "rentabilidade_acumulada", precision = 19, scale = 6)
+	private BigDecimal lucroPrejuizoRealizado = BigDecimal.ZERO;
 
 	@Column(nullable = false)
 	private LocalDateTime dataCriacao;
@@ -82,12 +82,12 @@ public class CarteiraInvestimento {
 		this.saldoTotal = saldoTotal;
 	}
 
-	public BigDecimal getRentabilidadeAcumulada() {
-		return rentabilidadeAcumulada;
+	public BigDecimal getLucroPrejuizoRealizado() {
+		return lucroPrejuizoRealizado;
 	}
 
-	public void setRentabilidadeAcumulada(BigDecimal rentabilidadeAcumulada) {
-		this.rentabilidadeAcumulada = rentabilidadeAcumulada;
+	public void setLucroPrejuizoRealizado(BigDecimal lucroPrejuizoRealizado) {
+		this.lucroPrejuizoRealizado = lucroPrejuizoRealizado;
 	}
 
 	public LocalDateTime getDataCriacao() {

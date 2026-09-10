@@ -14,7 +14,7 @@ export default function AppHeader({ onToggleMenu, sidebarOpen, onToggleTheme, on
 			>
 				☰
 			</button>
-			<span className="app-logo">FinFEF</span>
+			<span className="app-logo">GestãoAtiva</span>
 			<div className="header-spacer" />
 			<ThemeToggle onToggle={onToggleTheme} />
 			<button type="button" id="btn-logout" className="btn-logout" onClick={onLogout}>

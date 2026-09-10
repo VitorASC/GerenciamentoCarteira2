@@ -3,7 +3,7 @@ export default function StatusMessage({ status }) {
 	const isError = Boolean(status && status.error);
 	const className = isError ? "status error" : "status";
 	return (
-		<p className={className} role="status">
+		<p className={className} role={isError ? "alert" : "status"} aria-live="polite">
 			{text}
 		</p>
 	);

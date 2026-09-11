@@ -2,8 +2,10 @@ import { useState } from "react";
 import ThemeToggle from "../components/ThemeToggle";
 import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
+import { useAuth } from "../hooks/useAuth";
 
 export default function LoginScreen({ onToggleTheme }) {
+	const { sessionNotice, clearSessionNotice } = useAuth();
 	const [tab, setTab] = useState("login");
 	const [loginEmail, setLoginEmail] = useState("");
 	const [loginNotice, setLoginNotice] = useState(null);
@@ -11,15 +13,18 @@ export default function LoginScreen({ onToggleTheme }) {
 
 	function showLogin() {
 		setLoginNotice(null);
+		clearSessionNotice();
 		setTab("login");
 	}
 
 	function showRegister() {
 		setLoginNotice(null);
+		clearSessionNotice();
 		setTab("register");
 	}
 
 	function handleRegistrationSuccess(email) {
+		clearSessionNotice();
 		setLoginEmail(email);
 		setLoginNotice({
 			text: "Conta criada com sucesso. Faça login para continuar.",
@@ -64,7 +69,7 @@ export default function LoginScreen({ onToggleTheme }) {
 					</div>
 					<div className="auth-form-transition" key={tab}>
 						{isLogin ? (
-							<LoginForm initialEmail={loginEmail} initialStatus={loginNotice} />
+							<LoginForm initialEmail={loginEmail} initialStatus={loginNotice || sessionNotice} />
 						) : (
 							<RegisterForm onSuccess={handleRegistrationSuccess} />
 						)}

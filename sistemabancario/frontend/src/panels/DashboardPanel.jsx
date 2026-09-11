@@ -261,7 +261,7 @@ function PositionsTable({ positions, indicadores }) {
 	return (
 		<section className="dashboard-card positions-card">
 			<header className="dashboard-card-head">
-				<div><h3>Posições da carteira</h3><p>{formatNumber(indicadores?.quantidadePosicoes)} posições · {formatNumber(indicadores?.quantidadeTotalTitulos)} títulos</p></div>
+				<div><h3>Posições da carteira</h3><p>{formatNumber(indicadores?.quantidadePosicoes)} {Number(indicadores?.quantidadePosicoes) === 1 ? "posição" : "posições"} · {formatNumber(indicadores?.quantidadeTotalTitulos)} {Number(indicadores?.quantidadeTotalTitulos) === 1 ? "título" : "títulos"}</p></div>
 			</header>
 			{positions.length === 0 ? <PositionsEmpty /> : (
 				<div className="dashboard-table-wrap">

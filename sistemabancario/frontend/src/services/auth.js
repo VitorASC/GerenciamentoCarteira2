@@ -1,4 +1,5 @@
 export const TOKEN_KEY = "sistemabancario.jwt";
+export const SESSION_EXPIRED_EVENT = "gestaoativa:session-expired";
 
 export function getToken() {
 	return sessionStorage.getItem(TOKEN_KEY) || "";

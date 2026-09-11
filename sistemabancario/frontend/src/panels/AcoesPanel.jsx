@@ -1,322 +1,142 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import CotacoesChart from "../components/CotacoesChart";
-import DataTable from "../components/DataTable";
-import JsonOutput from "../components/JsonOutput";
-import StatusMessage from "../components/StatusMessage";
-import { useAuth } from "../hooks/useAuth";
+import { EntityDialog, EntityDialogActions, EntityEmpty, EntityFormMessage, EntityLoading, EntityNotice, EntityPageHeader } from "../components/EntityUi";
 import { api } from "../services/api";
-import { esc } from "../services/format";
+import { formatDateTime, formatMoney, formatNumber } from "../services/format";
 
-const COLUMNS = ["ID", "Ticker", "Empresa", "Mercado", "Cotação", "Corretora"];
-
-function rowMapper(a) {
-	return [
-		esc(a.id),
-		esc(a.ticker),
-		esc(a.nomeEmpresa),
-		esc(a.mercado),
-		esc(a.cotacaoAtual),
-		esc(a.corretoraId),
-	];
-}
+const EMPTY_STATUS = { text: "", error: false };
 
 export default function AcoesPanel() {
-	const { isAuthenticated } = useAuth();
-	const [status, setStatus] = useState({ text: "", error: false });
-	const [tableRows, setTableRows] = useState(null);
-	const [jsonData, setJsonData] = useState(null);
+	const [actions, setActions] = useState([]);
+	const [selectedId, setSelectedId] = useState("");
+	const [selected, setSelected] = useState(null);
+	const [history, setHistory] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [detailLoading, setDetailLoading] = useState(false);
+	const [historyError, setHistoryError] = useState("");
+	const [notice, setNotice] = useState(null);
+	const [filters, setFilters] = useState({ id: "", text: "" });
+	const [appliedText, setAppliedText] = useState("");
+	const [searchResult, setSearchResult] = useState(null);
+	const [searching, setSearching] = useState(false);
+	const [updating, setUpdating] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+	const [dialogOpen, setDialogOpen] = useState(false);
+	const [brokers, setBrokers] = useState([]);
 
-	const [chartStatus, setChartStatus] = useState({ text: "", error: false });
-	const [chartPoints, setChartPoints] = useState(null);
-
-	const [cadastro, setCadastro] = useState({ ticker: "", mercado: "BRASIL", corretoraId: "" });
-	const [buscaIdValue, setBuscaIdValue] = useState("");
-	const [buscaTickerValue, setBuscaTickerValue] = useState("");
-	const [atualizarIdValue, setAtualizarIdValue] = useState("");
-	const [excluirIdValue, setExcluirIdValue] = useState("");
-	const [chartIdValue, setChartIdValue] = useState("");
-
-	const requireAuth = useCallback(
-		(setStatusFn) => {
-			if (!isAuthenticated) {
-				(setStatusFn || setStatus)({ text: "Faça login.", error: true });
-				return false;
-			}
-			return true;
-		},
-		[isAuthenticated]
-	);
-
-	const handleListar = useCallback(async () => {
-		if (!requireAuth()) return;
-		setStatus({ text: "Carregando…", error: false });
+	const loadActions = useCallback(async (preferredId) => {
+		setLoading(true);
 		try {
-			const page = await api("GET", "/acoes?size=50");
-			const rows = page.content || [];
-			setStatus({ text: rows.length + " ações.", error: false });
-			setTableRows(rows);
-			setJsonData(null);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}, [requireAuth]);
-
-	async function handleCadastro(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		const body = {
-			ticker: cadastro.ticker.trim().toUpperCase(),
-			mercado: cadastro.mercado || "BRASIL",
-		};
-		if (cadastro.corretoraId && String(cadastro.corretoraId).trim() !== "") {
-			body.corretoraId = Number(cadastro.corretoraId);
-		}
-		setStatus({ text: "Cadastrando…", error: false });
-		try {
-			const data = await api("POST", "/acoes", body);
-			setStatus({ text: "Ação criada (ID " + data.id + ").", error: false });
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
-
-	async function handleBuscaId(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		setStatus({ text: "Buscando…", error: false });
-		try {
-			const data = await api("GET", "/acoes/" + encodeURIComponent(buscaIdValue));
-			setStatus({ text: "OK.", error: false });
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
-
-	async function handleBuscaTicker(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		setStatus({ text: "Buscando…", error: false });
-		try {
-			const data = await api("GET", "/acoes/ticker/" + encodeURIComponent(buscaTickerValue.trim()));
-			setStatus({ text: "OK.", error: false });
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
-
-	async function handleAtualizar(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		setStatus({ text: "Atualizando cotação…", error: false });
-		try {
-			const data = await api(
-				"PUT",
-				"/acoes/" + encodeURIComponent(atualizarIdValue) + "/atualizar-cotacao"
-			);
-			setStatus({ text: "Cotação atualizada.", error: false });
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
-
-	async function handleExcluir(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		if (!window.confirm("Excluir definitivamente a ação ID " + excluirIdValue + "?")) return;
-		setStatus({ text: "Excluindo…", error: false });
-		try {
-			await api("DELETE", "/acoes/" + encodeURIComponent(excluirIdValue));
-			setStatus({
-				text: "Ação ID " + excluirIdValue + " excluída com sucesso.",
-				error: false,
+			const page = await api("GET", "/acoes?size=100");
+			const rows = page?.content || [];
+			setActions(rows);
+			setSelectedId((current) => {
+				const preferred = preferredId != null ? String(preferredId) : current;
+				return rows.some((item) => String(item.id) === preferred) ? preferred : (rows[0]?.id != null ? String(rows[0].id) : "");
 			});
-			setTableRows(null);
-			setJsonData(null);
-			setExcluirIdValue("");
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
+			if (!rows.length) setSelected(null);
+		} catch (error) {
+			setNotice({ type: "error", text: error.message || "Não foi possível carregar as ações." });
+			setActions([]);
+		} finally { setLoading(false); }
+	}, []);
 
-	async function handleChart(e) {
-		e.preventDefault();
-		if (!isAuthenticated) {
-			setChartStatus({ text: "Faça login antes de carregar o gráfico.", error: true });
-			return;
-		}
-		setChartStatus({ text: "Carregando…", error: false });
+	useEffect(() => { loadActions(); }, [loadActions]);
+
+	const loadDetail = useCallback(async (id) => {
+		if (!id) return;
+		setDetailLoading(true);
+		setHistoryError("");
+		const [detailResult, historyResult] = await Promise.allSettled([
+			api("GET", "/acoes/" + encodeURIComponent(id)),
+			api("GET", "/acoes/" + encodeURIComponent(id) + "/historico-cotacoes?size=500"),
+		]);
+		if (detailResult.status === "fulfilled") setSelected(detailResult.value);
+		else { setSelected(null); setNotice({ type: "error", text: detailResult.reason?.message || "Não foi possível carregar o ativo." }); }
+		if (historyResult.status === "fulfilled") setHistory(historyResult.value?.content || []);
+		else { setHistory([]); setHistoryError(historyResult.reason?.message || "Não foi possível carregar o histórico."); }
+		setDetailLoading(false);
+	}, []);
+
+	useEffect(() => { loadDetail(selectedId); }, [selectedId, loadDetail]);
+
+	const visibleActions = useMemo(() => {
+		const base = searchResult !== null ? searchResult : actions;
+		if (!appliedText) return base;
+		const query = appliedText.toLocaleLowerCase("pt-BR");
+		return base.filter((item) => item.ticker?.toLocaleLowerCase("pt-BR").includes(query) || item.nomeEmpresa?.toLocaleLowerCase("pt-BR").includes(query));
+	}, [actions, searchResult, appliedText]);
+
+	async function search(event) {
+		event.preventDefault(); setNotice(null); setSearching(true);
+		const id = filters.id.trim(); const text = filters.text.trim();
 		try {
-			const page = await api(
-				"GET",
-				"/acoes/" + encodeURIComponent(chartIdValue) + "/historico-cotacoes?size=500"
-			);
-			const rows = page.content || [];
-			if (rows.length === 0) {
-				setChartStatus({ text: "Nenhum ponto de histórico para esta ação.", error: false });
-				setChartPoints(null);
-				return;
-			}
-			setChartPoints(rows);
-			setChartStatus({ text: rows.length + " pontos carregados.", error: false });
-		} catch (err) {
-			setChartStatus({ text: err.message, error: true });
-		}
+			if (id) {
+				const item = await api("GET", "/acoes/" + encodeURIComponent(id));
+				const query = text.toLocaleLowerCase("pt-BR");
+				const matches = !text || item.ticker?.toLocaleLowerCase("pt-BR").includes(query) || item.nomeEmpresa?.toLocaleLowerCase("pt-BR").includes(query);
+				setSearchResult(matches ? [item] : []); setAppliedText(""); if (matches) setSelectedId(String(item.id));
+			} else if (text && actions.some((item) => item.ticker?.toUpperCase() === text.toUpperCase())) {
+				const item = await api("GET", "/acoes/ticker/" + encodeURIComponent(text.toUpperCase()));
+				setSearchResult([item]); setAppliedText(""); setSelectedId(String(item.id));
+			} else { setSearchResult(null); setAppliedText(text); }
+		} catch (error) {
+			setSearchResult([]); setAppliedText(""); setNotice({ type: "error", text: error.message || "Ativo não encontrado." });
+		} finally { setSearching(false); }
 	}
 
-	return (
-		<div className="card section">
-			<p className="hint">
-				Listagens e cadastro; atualização de cotação via integração. Mercado BRASIL: BRAPI —
-				sem token só PETR4, VALE3, MGLU3 e ITUB4. EUA: Alpha Vantage (
-				<code>ALPHAVANTAGE_API_KEY</code>).
-			</p>
-			<div className="toolbar">
-				<button type="button" id="btn-acoes-listar" onClick={handleListar}>
-					Listar ações
-				</button>
-			</div>
-			<form id="form-acao-cadastro" className="form-grid wide" onSubmit={handleCadastro}>
-				<label>
-					Ticker
-					<input
-						type="text"
-						name="ticker"
-						required
-						placeholder="ex.: PETR4"
-						value={cadastro.ticker}
-						onChange={(e) => setCadastro({ ...cadastro, ticker: e.target.value })}
-					/>
-				</label>
-				<label>
-					Mercado
-					<select
-						name="mercado"
-						required
-						value={cadastro.mercado}
-						onChange={(e) => setCadastro({ ...cadastro, mercado: e.target.value })}
-					>
-						<option value="BRASIL">BRASIL</option>
-						<option value="ESTADOS_UNIDOS">ESTADOS_UNIDOS</option>
-					</select>
-				</label>
-				<label>
-					ID da corretora
-					<input
-						type="number"
-						name="corretoraId"
-						min="1"
-						placeholder="opcional"
-						value={cadastro.corretoraId}
-						onChange={(e) => setCadastro({ ...cadastro, corretoraId: e.target.value })}
-					/>
-				</label>
-				<button type="submit">Cadastrar ação</button>
-			</form>
-			<form id="form-acao-buscar-id" className="form-inline" onSubmit={handleBuscaId}>
-				<label>
-					ID
-					<input
-						type="number"
-						name="id"
-						min="1"
-						required
-						value={buscaIdValue}
-						onChange={(e) => setBuscaIdValue(e.target.value)}
-					/>
-				</label>
-				<button type="submit">Buscar por ID</button>
-			</form>
-			<form id="form-acao-buscar-ticker" className="form-inline" onSubmit={handleBuscaTicker}>
-				<label>
-					Ticker
-					<input
-						type="text"
-						name="ticker"
-						required
-						value={buscaTickerValue}
-						onChange={(e) => setBuscaTickerValue(e.target.value)}
-					/>
-				</label>
-				<button type="submit">Buscar por ticker</button>
-			</form>
-			<form
-				id="form-acao-atualizar-cotacao"
-				className="form-inline"
-				onSubmit={handleAtualizar}
-			>
-				<label>
-					ID da ação
-					<input
-						type="number"
-						name="id"
-						min="1"
-						required
-						value={atualizarIdValue}
-						onChange={(e) => setAtualizarIdValue(e.target.value)}
-					/>
-				</label>
-				<button type="submit">Atualizar cotação</button>
-			</form>
-			<h3 className="block-title">Excluir ação</h3>
-			<p className="hint">
-				Só é possível excluir ações sem posições em carteiras nem transações registradas.
-			</p>
-			<form id="form-acao-excluir" className="form-inline" onSubmit={handleExcluir}>
-				<label>
-					ID da ação
-					<input
-						type="number"
-						name="id"
-						min="1"
-						required
-						value={excluirIdValue}
-						onChange={(e) => setExcluirIdValue(e.target.value)}
-					/>
-				</label>
-				<button type="submit" className="btn-danger">
-					Excluir ação
-				</button>
-			</form>
-			<h3 className="block-title">Histórico de cotações (gráfico)</h3>
-			<form id="form-chart" className="form-inline" onSubmit={handleChart}>
-				<label>
-					ID da ação
-					<input
-						type="number"
-						name="acaoId"
-						min="1"
-						required
-						placeholder="ex.: 1"
-						value={chartIdValue}
-						onChange={(e) => setChartIdValue(e.target.value)}
-					/>
-				</label>
-				<button type="submit">Carregar histórico</button>
-			</form>
-			<StatusMessage status={chartStatus} />
-			{chartPoints && chartPoints.length > 0 ? (
-				<CotacoesChart points={chartPoints} />
-			) : (
-				<div className="chart-wrap" />
-			)}
-			<StatusMessage status={status} />
-			{tableRows && (
-				<DataTable
-					columns={COLUMNS}
-					rows={tableRows}
-					rowMapper={rowMapper}
-					getRowKey={(a, i) => a.id ?? i}
-				/>
-			)}
-			<JsonOutput data={jsonData} />
-		</div>
-	);
+	function clearFilters() { setFilters({ id: "", text: "" }); setAppliedText(""); setSearchResult(null); setNotice(null); }
+
+	async function openCreate() {
+		setDialogOpen(true);
+		if (brokers.length) return;
+		try { const page = await api("GET", "/corretoras?size=100"); setBrokers(page?.content || []); }
+		catch (error) { setNotice({ type: "error", text: error.message || "Não foi possível carregar as corretoras." }); }
+	}
+
+	async function updateQuote() {
+		if (!selected || updating) return;
+		setUpdating(true); setNotice({ type: "loading", text: "Atualizando cotação..." });
+		try { await api("PUT", "/acoes/" + encodeURIComponent(selected.id) + "/atualizar-cotacao"); await loadActions(selected.id); await loadDetail(selected.id); setNotice({ type: "success", text: "Cotação atualizada com sucesso." }); }
+		catch (error) { setNotice({ type: "error", text: error.message || "Não foi possível atualizar a cotação." }); }
+		finally { setUpdating(false); }
+	}
+
+	async function removeAction() {
+		if (!selected || deleting || !window.confirm(`Excluir definitivamente a ação #${selected.id} — ${selected.ticker}?`)) return;
+		setDeleting(true); setNotice({ type: "loading", text: "Excluindo ação..." });
+		try { await api("DELETE", "/acoes/" + encodeURIComponent(selected.id)); setSearchResult(null); await loadActions(""); setNotice({ type: "success", text: "Ação excluída com sucesso." }); }
+		catch (error) { setNotice({ type: "error", text: error.message || "Não foi possível excluir a ação." }); }
+		finally { setDeleting(false); }
+	}
+
+	return <div className="entity-page">
+		<EntityPageHeader eyebrow="Mercado" title="Ações" description="Acompanhe ativos, cotações e histórico." actionLabel="+ Nova ação" onAction={openCreate} />
+		<EntityNotice notice={notice} onClose={() => setNotice(null)} />
+		<section className="dashboard-card entity-list-card"><header className="entity-card-head"><div><h3>Ativos cadastrados</h3><p>Selecione um ativo para acompanhar sua cotação.</p></div><span>{formatNumber(actions.length)} {actions.length === 1 ? "ação" : "ações"}</span></header>
+			<form className="entity-filters" onSubmit={search}><label><span>ID</span><input type="number" min="1" placeholder="Ex.: 1" value={filters.id} onChange={(e) => setFilters({ ...filters, id: e.target.value })} /></label><label><span>Ticker ou nome</span><input type="search" placeholder="Ex.: PETR4 ou Petrobras" value={filters.text} onChange={(e) => setFilters({ ...filters, text: e.target.value })} /></label><button type="submit" disabled={searching}>{searching ? "Buscando..." : "Buscar"}</button><button type="button" className="wallet-filter-clear" onClick={clearFilters}>Limpar</button></form>
+			{loading ? <EntityLoading label="Carregando ações..." /> : actions.length === 0 ? <EntityEmpty title="Nenhuma ação cadastrada." description="Cadastre um ativo para começar a acompanhar suas cotações." actionLabel="Cadastrar primeira ação" onAction={openCreate} /> : visibleActions.length === 0 ? <EntityEmpty title="Nenhum ativo corresponde aos filtros." actionLabel="Limpar filtros" onAction={clearFilters} /> : <ActionsTable rows={visibleActions} selectedId={selectedId} onSelect={setSelectedId} />}
+		</section>
+		{actions.length ? detailLoading ? <EntityLoading label="Carregando detalhes e histórico..." /> : selected ? <><ActionDetail action={selected} brokers={brokers} updating={updating} deleting={deleting} onUpdate={updateQuote} onDelete={removeAction} /><section className="dashboard-card entity-chart-card"><header className="dashboard-card-head"><div><h3>Histórico de cotação</h3><p>Registros reais persistidos para {selected.ticker}</p></div><span className="entity-count-badge">{formatNumber(history.length)} pontos</span></header>{historyError ? <EntityFormMessage status={{ text: historyError, error: true }} /> : history.length < 2 ? <EntityEmpty title="Ainda não há histórico de cotação suficiente para este ativo." description="Atualize a cotação para criar novos registros ao longo do tempo." /> : <CotacoesChart points={history} />}</section></> : null : null}
+		{dialogOpen ? <CreateActionDialog brokers={brokers} onClose={() => setDialogOpen(false)} onCreated={async (item) => { setDialogOpen(false); await loadActions(item.id); setNotice({ type: "success", text: `Ação #${item.id} — ${item.ticker} cadastrada com sucesso.` }); }} /> : null}
+	</div>;
 }
+
+function ActionsTable({ rows, selectedId, onSelect }) {
+	return <div className="dashboard-table-wrap"><table className="dashboard-table entity-table"><thead><tr><th>ID</th><th>Ativo</th><th>Mercado</th><th>Cotação atual</th><th>Atualização</th><th>Corretora</th><th /></tr></thead><tbody>{rows.map((item) => <tr key={item.id} className={String(item.id) === selectedId ? "entity-row--selected" : ""}><td><span className="table-id">#{item.id}</span></td><td><strong>{item.ticker}</strong><small>{item.nomeEmpresa || "Empresa não informada"}</small></td><td><span className="entity-badge">{marketLabel(item.mercado)}</span></td><td><strong>{formatMoney(item.cotacaoAtual)}</strong></td><td>{formatDateTime(item.dataHoraCotacao)}</td><td>{item.corretoraId ? `#${item.corretoraId}` : "—"}</td><td><button type="button" className="entity-table-action" onClick={() => onSelect(String(item.id))}>Ver detalhes</button></td></tr>)}</tbody></table></div>;
+}
+
+function ActionDetail({ action, brokers, updating, deleting, onUpdate, onDelete }) {
+	const broker = brokers.find((item) => String(item.id) === String(action.corretoraId));
+	return <section className="dashboard-card entity-detail"><div className="entity-detail-primary"><span className="wallet-id">ID {action.id}</span><div><span className="entity-symbol">{action.ticker}</span><h3>{action.nomeEmpresa || "Empresa não informada"}</h3><p>{marketLabel(action.mercado)} · {action.corretoraId ? (broker?.nomeFantasia || broker?.razaoSocial || `Corretora #${action.corretoraId}`) : "Sem corretora associada"}</p></div></div><div className="entity-quote"><span>Cotação atual</span><strong>{formatMoney(action.cotacaoAtual)}</strong><small>Atualizada em {formatDateTime(action.dataHoraCotacao)}</small></div><div className="entity-detail-actions"><button type="button" className="wallet-action wallet-action--buy" onClick={onUpdate} disabled={updating}>{updating ? "Atualizando..." : "Atualizar cotação"}</button><button type="button" className="wallet-action wallet-action--danger" onClick={onDelete} disabled={deleting}>{deleting ? "Excluindo..." : "Excluir ação"}</button></div></section>;
+}
+
+function CreateActionDialog({ brokers, onClose, onCreated }) {
+	const [form, setForm] = useState({ ticker: "", market: "BRASIL", brokerId: "" });
+	const [status, setStatus] = useState(EMPTY_STATUS);
+	const [submitting, setSubmitting] = useState(false);
+	async function submit(event) { event.preventDefault(); if (submitting) return; setSubmitting(true); setStatus(EMPTY_STATUS); const body = { ticker: form.ticker.trim().toUpperCase(), mercado: form.market }; if (form.brokerId) body.corretoraId = Number(form.brokerId); try { const created = await api("POST", "/acoes", body); await onCreated(created); } catch (error) { setStatus({ text: error.message || "Não foi possível cadastrar a ação.", error: true }); } finally { setSubmitting(false); } }
+	return <EntityDialog title="Nova ação" subtitle="A cotação inicial será consultada pela integração do mercado." onClose={onClose}><form className="wallet-dialog-form" onSubmit={submit}><label><span>Ticker</span><input type="text" required autoFocus maxLength="15" placeholder="Ex.: PETR4" value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })} /></label><label><span>Mercado</span><select required value={form.market} onChange={(e) => setForm({ ...form, market: e.target.value })}><option value="BRASIL">Brasil</option><option value="ESTADOS_UNIDOS">Estados Unidos</option></select></label><label><span>Corretora <small>opcional</small></span><select value={form.brokerId} onChange={(e) => setForm({ ...form, brokerId: e.target.value })}><option value="">Sem corretora</option>{brokers.map((broker) => <option key={broker.id} value={broker.id}>{broker.id} — {broker.nomeFantasia || broker.razaoSocial}</option>)}</select></label><p className="wallet-form-hint">O backend escolherá o provedor e consultará a cotação conforme o mercado selecionado.</p><EntityFormMessage status={status} /><EntityDialogActions onClose={onClose} submitting={submitting} submitLabel="Cadastrar ação" busyLabel="Cadastrando..." /></form></EntityDialog>;
+}
+
+function marketLabel(value) { return value === "ESTADOS_UNIDOS" ? "Estados Unidos" : value === "BRASIL" ? "Brasil" : value || "—"; }

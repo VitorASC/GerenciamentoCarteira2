@@ -72,6 +72,10 @@ export default function AppShell({ onToggleTheme }) {
 		setSidebarOpen(false);
 	}, []);
 
+	const handleUserUpdated = useCallback((updatedUser) => {
+		setUser(updatedUser);
+	}, []);
+
 	const handleToggleCollapsed = useCallback(() => {
 		setSidebarCollapsed((current) => {
 			const next = !current;
@@ -113,7 +117,7 @@ export default function AppShell({ onToggleTheme }) {
 						<CarteirasPanel />
 					</PanelContainer>
 					<PanelContainer panel="conta" active={activePanel}>
-						<ContaPanel />
+						<ContaPanel onUserUpdated={handleUserUpdated} />
 					</PanelContainer>
 				</main>
 			</div>

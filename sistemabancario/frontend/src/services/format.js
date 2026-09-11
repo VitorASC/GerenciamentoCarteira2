@@ -2,6 +2,28 @@ export function stripDigits(s) {
 	return String(s || "").replace(/\D/g, "");
 }
 
+export function formatCpf(value) {
+	const digits = stripDigits(value);
+	return digits.length === 11 ? digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : value || "—";
+}
+
+export function formatCnpj(value) {
+	const digits = stripDigits(value);
+	return digits.length === 14 ? digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") : value || "—";
+}
+
+export function formatDate(value) {
+	if (!value) return "—";
+	const date = new Date(String(value).length === 10 ? value + "T00:00:00" : value);
+	return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("pt-BR");
+}
+
+export function formatDateTime(value) {
+	if (!value) return "—";
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
 export function esc(s) {
 	if (s == null || s === "") {
 		return "—";

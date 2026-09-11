@@ -1,678 +1,361 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import DataTable from "../components/DataTable";
-import JsonOutput from "../components/JsonOutput";
-import StatusMessage from "../components/StatusMessage";
+import { ArcElement, Chart as ChartJS, Legend, Tooltip } from "chart.js";
+import { Doughnut } from "react-chartjs-2";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
-import { esc } from "../services/format";
+import { formatMoney, formatNumber, formatPercent, valueTone } from "../services/format";
 
-const COLUMNS = [
-	"ID",
-	"Nome",
-	"Saldo",
-	"Rentab. %",
-	"Corretora",
-	"Posições",
-	"Média das ações",
-];
+const CHART_COLORS = ["#2ec98f", "#56a9a0", "#8ccf83", "#60a5d8", "#b2c56c", "#7e8fd0"];
+const EMPTY_FORM_STATUS = { text: "", error: false };
 
-function rowMapper(c) {
-	const n = c.posicoes ? c.posicoes.length : 0;
-	return [
-		esc(c.id),
-		esc(c.nomeDaCarteira),
-		esc(c.saldoTotal),
-		esc(c.rentabilidadeAcumulada),
-		esc(c.corretoraId),
-		esc(n),
-		esc(c.mediaValorMercadoPorTitulo),
-	];
-}
+const walletCenterTextPlugin = {
+	id: "walletCenterText",
+	beforeDraw(chart, _args, options) {
+		if (!options?.value) return;
+		const { ctx, chartArea } = chart;
+		if (!chartArea) return;
+		const styles = getComputedStyle(document.documentElement);
+		const textColor = styles.getPropertyValue("--text").trim() || "#eef7f3";
+		const mutedColor = styles.getPropertyValue("--text-muted").trim() || "#91a39b";
+		const x = (chartArea.left + chartArea.right) / 2;
+		const y = (chartArea.top + chartArea.bottom) / 2;
+		ctx.save();
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.fillStyle = mutedColor;
+		ctx.font = "500 12px system-ui";
+		ctx.fillText("Patrimônio", x, y - 10);
+		ctx.fillStyle = textColor;
+		ctx.font = "700 15px system-ui";
+		ctx.fillText(options.value, x, y + 13);
+		ctx.restore();
+	},
+};
+
+ChartJS.register(ArcElement, Tooltip, Legend, walletCenterTextPlugin);
 
 export default function CarteirasPanel() {
-	const { isAuthenticated, usuarioId } = useAuth();
-	const [status, setStatus] = useState({ text: "", error: false });
-	const [tableRows, setTableRows] = useState(null);
-	const [jsonData, setJsonData] = useState(null);
+	const { usuarioId } = useAuth();
+	const [wallets, setWallets] = useState([]);
+	const [selectedId, setSelectedId] = useState("");
+	const [wallet, setWallet] = useState(null);
+	const [metrics, setMetrics] = useState(null);
+	const [loadingWallets, setLoadingWallets] = useState(true);
+	const [loadingDetail, setLoadingDetail] = useState(false);
+	const [loadError, setLoadError] = useState("");
+	const [refreshKey, setRefreshKey] = useState(0);
+	const [filters, setFilters] = useState({ id: "", name: "" });
+	const [appliedName, setAppliedName] = useState("");
+	const [idSearchResult, setIdSearchResult] = useState(null);
+	const [searching, setSearching] = useState(false);
+	const [notice, setNotice] = useState(null);
+	const [deleting, setDeleting] = useState(false);
+	const [dialog, setDialog] = useState(null);
+	const [actions, setActions] = useState([]);
+	const [brokers, setBrokers] = useState([]);
+	const [referencesLoading, setReferencesLoading] = useState(false);
+	const [referencesError, setReferencesError] = useState("");
 
-	const [cadastro, setCadastro] = useState({
-		usuarioId: "",
-		nomeDaCarteira: "",
-		corretoraId: "",
-		saldoInicial: "",
-	});
-	const [buscaIdValue, setBuscaIdValue] = useState("");
-	const [buscaUsuarioValue, setBuscaUsuarioValue] = useState("");
-	const [atualizar, setAtualizar] = useState({ id: "", nomeDaCarteira: "", corretoraId: "" });
-	const [compra, setCompra] = useState({ carteiraId: "", acaoId: "", quantidade: "" });
-	const [compraPrecoNum, setCompraPrecoNum] = useState(null);
-	const [compraPrecoDisplay, setCompraPrecoDisplay] = useState("");
-	const [venda, setVenda] = useState({ carteiraId: "", acaoId: "", quantidade: "" });
-	const [indicadorTicker, setIndicadorTicker] = useState({ carteiraId: "", ticker: "" });
-	const [indicadorMedia, setIndicadorMedia] = useState({ carteiraId: "" });
-	const [excluirIdValue, setExcluirIdValue] = useState("");
-
-	useEffect(() => {
+	const loadWallets = useCallback(async (preferredId) => {
 		if (!usuarioId) return;
-		setCadastro((prev) => (prev.usuarioId ? prev : { ...prev, usuarioId }));
-		setBuscaUsuarioValue((prev) => (prev ? prev : usuarioId));
+		setLoadingWallets(true);
+		setLoadError("");
+		try {
+			const response = await api("GET", "/carteiras/usuario/" + encodeURIComponent(usuarioId));
+			const list = Array.isArray(response) ? response : [];
+			setWallets(list);
+			setSelectedId((current) => {
+				const preferred = preferredId != null ? String(preferredId) : current;
+				if (list.some((item) => String(item.id) === preferred)) return preferred;
+				return list[0]?.id != null ? String(list[0].id) : "";
+			});
+			if (list.length === 0) {
+				setWallet(null);
+				setMetrics(null);
+			}
+		} catch (error) {
+			setLoadError(error.message || "Não foi possível carregar suas carteiras.");
+			setWallets([]);
+			setSelectedId("");
+		} finally {
+			setLoadingWallets(false);
+		}
 	}, [usuarioId]);
 
-	const requireAuth = useCallback(() => {
-		if (!isAuthenticated) {
-			setStatus({ text: "Faça login.", error: true });
-			return false;
-		}
-		return true;
-	}, [isAuthenticated]);
-
-	const compraCustoTotal = useMemo(() => {
-		const qStr = String(compra.quantidade || "").trim().replace(",", ".");
-		const q = parseFloat(qStr);
-		if (compraPrecoNum == null || !Number.isFinite(q) || q <= 0) {
-			return "—";
-		}
-		const total = q * compraPrecoNum;
-		return total.toLocaleString("pt-BR", {
-			minimumFractionDigits: 2,
-			maximumFractionDigits: 8,
-		});
-	}, [compra.quantidade, compraPrecoNum]);
-
-	const carregarCotacaoCompra = useCallback(
-		async (id) => {
-			if (!isAuthenticated) return;
-			const trimmed = String(id || "").trim();
-			if (!trimmed) {
-				setCompraPrecoDisplay("");
-				setCompraPrecoNum(null);
-				return;
-			}
-			try {
-				const data = await api("GET", "/acoes/" + encodeURIComponent(trimmed));
-				if (data.cotacaoAtual == null || data.cotacaoAtual === "") {
-					setCompraPrecoDisplay("(sem cotação no cadastro — estimativa indisponível)");
-					setCompraPrecoNum(null);
-				} else {
-					setCompraPrecoNum(Number(data.cotacaoAtual));
-					setCompraPrecoDisplay(
-						typeof data.cotacaoAtual === "number"
-							? String(data.cotacaoAtual)
-							: String(data.cotacaoAtual).trim()
-					);
-				}
-			} catch (err) {
-				setCompraPrecoDisplay("");
-				setCompraPrecoNum(null);
-				setStatus({ text: err.message, error: true });
-			}
-		},
-		[isAuthenticated]
-	);
+	useEffect(() => { loadWallets(); }, [loadWallets]);
 
 	useEffect(() => {
-		if (!compra.acaoId) {
-			setCompraPrecoDisplay("");
-			setCompraPrecoNum(null);
+		if (!selectedId) return;
+		let active = true;
+		setLoadingDetail(true);
+		setLoadError("");
+		Promise.all([
+			api("GET", "/carteiras/" + encodeURIComponent(selectedId)),
+			api("GET", "/carteiras/" + encodeURIComponent(selectedId) + "/indicadores/media-carteira"),
+		])
+			.then(([detail, indicators]) => {
+				if (!active) return;
+				setWallet(detail);
+				setMetrics(indicators);
+			})
+			.catch((error) => {
+				if (!active) return;
+				setLoadError(error.message || "Não foi possível carregar a carteira selecionada.");
+				setWallet(null);
+				setMetrics(null);
+			})
+			.finally(() => { if (active) setLoadingDetail(false); });
+		return () => { active = false; };
+	}, [selectedId, refreshKey]);
+
+	const visibleWallets = useMemo(() => {
+		const base = idSearchResult !== null ? idSearchResult : wallets;
+		if (!appliedName) return base;
+		const normalized = appliedName.toLocaleLowerCase("pt-BR");
+		return base.filter((item) => item.nomeDaCarteira?.toLocaleLowerCase("pt-BR").includes(normalized));
+	}, [wallets, idSearchResult, appliedName]);
+
+	const positions = useMemo(() => wallet?.posicoes || [], [wallet]);
+	const distribution = useMemo(() => {
+		const valid = positions
+			.map((position) => ({ ...position, marketValue: Number(position.valorMercadoAtual) }))
+			.filter((position) => Number.isFinite(position.marketValue) && position.marketValue > 0);
+		const total = valid.reduce((sum, position) => sum + position.marketValue, 0);
+		return valid.map((position, index) => ({
+			...position,
+			percentage: total > 0 ? (position.marketValue / total) * 100 : 0,
+			color: CHART_COLORS[index % CHART_COLORS.length],
+		}));
+	}, [positions]);
+
+	async function handleSearch(event) {
+		event.preventDefault();
+		setNotice(null);
+		setAppliedName(filters.name.trim());
+		if (!filters.id.trim()) {
+			setIdSearchResult(null);
 			return;
 		}
-		const handle = setTimeout(() => {
-			carregarCotacaoCompra(compra.acaoId);
-		}, 250);
-		return () => clearTimeout(handle);
-	}, [compra.acaoId, carregarCotacaoCompra]);
-
-	const handleListar = useCallback(async () => {
-		if (!requireAuth()) return;
-		setStatus({ text: "Carregando…", error: false });
+		setSearching(true);
 		try {
-			const page = await api("GET", "/carteiras?size=50");
-			const rows = page.content || [];
-			const rowsComMedia = await Promise.all(
-				rows.map((c) =>
-					api(
-						"GET",
-						"/carteiras/" + encodeURIComponent(c.id) + "/indicadores/media-carteira"
-					)
-						.then((ind) => ({
-							...c,
-							mediaValorMercadoPorTitulo: ind.mediaValorMercadoPorTitulo,
-						}))
-						.catch(() => ({ ...c, mediaValorMercadoPorTitulo: null }))
-				)
-			);
-			setStatus({ text: rows.length + " carteiras.", error: false });
-			setTableRows(rowsComMedia);
-			setJsonData(null);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}, [requireAuth]);
-
-	async function handleCadastro(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		const body = {
-			usuarioId: Number(cadastro.usuarioId),
-			nomeDaCarteira: cadastro.nomeDaCarteira.trim(),
-		};
-		if (cadastro.corretoraId && String(cadastro.corretoraId).trim() !== "") {
-			body.corretoraId = Number(cadastro.corretoraId);
-		}
-		const saldo = String(cadastro.saldoInicial || "").trim();
-		if (saldo !== "") body.saldoInicial = saldo;
-		setStatus({ text: "Criando carteira…", error: false });
-		try {
-			const data = await api("POST", "/carteiras", body);
-			setStatus({ text: "Carteira criada (ID " + data.id + ").", error: false });
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
+			const result = await api("GET", "/carteiras/" + encodeURIComponent(filters.id.trim()));
+			const nameQuery = filters.name.trim().toLocaleLowerCase("pt-BR");
+			const matchesName = !nameQuery || result.nomeDaCarteira?.toLocaleLowerCase("pt-BR").includes(nameQuery);
+			setIdSearchResult(matchesName ? [result] : []);
+			if (matchesName) setSelectedId(String(result.id));
+		} catch (error) {
+			setIdSearchResult([]);
+			setNotice({ type: "error", text: error.message || "Carteira não encontrada." });
+		} finally {
+			setSearching(false);
 		}
 	}
 
-	async function handleBuscaId(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		setStatus({ text: "Buscando…", error: false });
+	function clearFilters() {
+		setFilters({ id: "", name: "" });
+		setAppliedName("");
+		setIdSearchResult(null);
+		setNotice(null);
+	}
+
+	async function loadReferences(kind) {
+		setReferencesError("");
+		if (kind === "sell") return;
+		if (kind === "buy" && actions.length > 0) return;
+		if ((kind === "create" || kind === "edit") && brokers.length > 0) return;
+		setReferencesLoading(true);
 		try {
-			const data = await api("GET", "/carteiras/" + encodeURIComponent(buscaIdValue));
-			setStatus({ text: "OK.", error: false });
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
+			if (kind === "buy") {
+				const response = await api("GET", "/acoes?size=100");
+				setActions(response?.content || []);
+			} else {
+				const response = await api("GET", "/corretoras?size=100");
+				setBrokers(response?.content || []);
+			}
+		} catch (error) {
+			setReferencesError(error.message || "Não foi possível carregar as opções.");
+		} finally {
+			setReferencesLoading(false);
 		}
 	}
 
-	async function handleBuscaUsuario(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		setStatus({ text: "Carregando…", error: false });
-		try {
-			const list = await api(
-				"GET",
-				"/carteiras/usuario/" + encodeURIComponent(buscaUsuarioValue)
-			);
-			const n = Array.isArray(list) ? list.length : 0;
-			setStatus({ text: n + " carteiras.", error: false });
-			setTableRows(null);
-			setJsonData(list);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
+	function openDialog(type) {
+		setNotice(null);
+		setDialog(type);
+		loadReferences(type);
 	}
 
-	async function handleAtualizar(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		const body = {};
-		if (atualizar.nomeDaCarteira.trim()) body.nomeDaCarteira = atualizar.nomeDaCarteira.trim();
-		if (atualizar.corretoraId && String(atualizar.corretoraId).trim() !== "") {
-			body.corretoraId = Number(atualizar.corretoraId);
-		}
-		setStatus({ text: "Atualizando…", error: false });
-		try {
-			const data = await api(
-				"PUT",
-				"/carteiras/" + encodeURIComponent(atualizar.id),
-				body
-			);
-			setStatus({ text: "Carteira atualizada.", error: false });
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
+	async function refreshAfterChange(preferredId) {
+		await loadWallets(preferredId);
+		setRefreshKey((key) => key + 1);
 	}
 
-	async function handleCompra(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		await carregarCotacaoCompra(compra.acaoId);
-		const body = {
-			acaoId: Number(compra.acaoId),
-			quantidade: String(compra.quantidade || "").trim(),
-		};
-		setStatus({ text: "Registrando compra (cotação ao vivo na API)…", error: false });
+	async function handleDelete() {
+		if (deleting || !wallet || !window.confirm(`Excluir definitivamente a carteira #${wallet.id}? O saldo deve estar zerado e não pode haver posições.`)) return;
+		setDeleting(true);
+		setNotice({ type: "loading", text: "Excluindo carteira..." });
 		try {
-			const data = await api(
-				"POST",
-				"/carteiras/" + encodeURIComponent(compra.carteiraId) + "/compras",
-				body
-			);
-			setStatus({
-				text: "Compra registrada ao preço da cotação atual da API.",
-				error: false,
-			});
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
-
-	async function handleVenda(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		const body = {
-			acaoId: Number(venda.acaoId),
-			quantidade: String(venda.quantidade || "").trim(),
-		};
-		setStatus({ text: "Registrando venda (cotação ao vivo na API)…", error: false });
-		try {
-			const data = await api(
-				"POST",
-				"/carteiras/" + encodeURIComponent(venda.carteiraId) + "/vendas",
-				body
-			);
-			setStatus({
-				text: "Venda registrada ao preço da cotação atual da API.",
-				error: false,
-			});
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
-
-	async function handleIndicadorTicker(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		const ticker = indicadorTicker.ticker.trim();
-		if (!ticker) {
-			setStatus({ text: "Informe o ticker.", error: true });
-			return;
-		}
-		setStatus({ text: "Calculando indicador do ticker…", error: false });
-		try {
-			const data = await api(
-				"GET",
-				"/carteiras/" +
-					encodeURIComponent(indicadorTicker.carteiraId) +
-					"/indicadores/ticker/" +
-					encodeURIComponent(ticker)
-			);
-			setStatus({
-				text: "Indicador do ticker (preço médio e mercado).",
-				error: false,
-			});
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
-
-	async function handleIndicadorMedia(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		setStatus({ text: "Calculando indicadores da carteira…", error: false });
-		try {
-			const data = await api(
-				"GET",
-				"/carteiras/" +
-					encodeURIComponent(indicadorMedia.carteiraId) +
-					"/indicadores/media-carteira"
-			);
-			setStatus({
-				text: "Médias e totais da carteira (cotação ao vivo).",
-				error: false,
-			});
-			setTableRows(null);
-			setJsonData(data);
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
-		}
-	}
-
-	async function handleExcluir(e) {
-		e.preventDefault();
-		if (!requireAuth()) return;
-		if (
-			!window.confirm(
-				"Excluir definitivamente a carteira ID " +
-					excluirIdValue +
-					"? O saldo deve estar zerado e sem ações em posição."
-			)
-		)
-			return;
-		setStatus({ text: "Excluindo carteira…", error: false });
-		try {
-			await api("DELETE", "/carteiras/" + encodeURIComponent(excluirIdValue));
-			setStatus({
-				text: "Carteira ID " + excluirIdValue + " excluída com sucesso.",
-				error: false,
-			});
-			setTableRows(null);
-			setJsonData(null);
-			setExcluirIdValue("");
-		} catch (err) {
-			setStatus({ text: err.message, error: true });
+			await api("DELETE", "/carteiras/" + encodeURIComponent(wallet.id));
+			setNotice({ type: "success", text: `Carteira #${wallet.id} excluída com sucesso.` });
+			await loadWallets("");
+			setIdSearchResult(null);
+		} catch (error) {
+			setNotice({ type: "error", text: error.message || "Não foi possível excluir a carteira." });
+		} finally {
+			setDeleting(false);
 		}
 	}
 
 	return (
-		<div className="card section">
-			<p className="hint">
-				Operações usam o usuário autenticado; use o ID do usuário logado nos formulários.
-			</p>
-			<div className="toolbar">
-				<button type="button" id="btn-carteiras-listar" onClick={handleListar}>
-					Minhas carteiras
-				</button>
-			</div>
-			<h3 className="block-title">Nova carteira</h3>
-			<form id="form-carteira-cadastro" className="form-grid wide" onSubmit={handleCadastro}>
-				<label>
-					ID do usuário
-					<input
-						type="number"
-						name="usuarioId"
-						min="1"
-						required
-						id="carteira-usuario-id"
-						value={cadastro.usuarioId}
-						onChange={(e) => setCadastro({ ...cadastro, usuarioId: e.target.value })}
-					/>
-				</label>
-				<label>
-					Nome da carteira
-					<input
-						type="text"
-						name="nomeDaCarteira"
-						required
-						value={cadastro.nomeDaCarteira}
-						onChange={(e) => setCadastro({ ...cadastro, nomeDaCarteira: e.target.value })}
-					/>
-				</label>
-				<label>
-					ID da corretora
-					<input
-						type="number"
-						name="corretoraId"
-						min="1"
-						placeholder="opcional"
-						value={cadastro.corretoraId}
-						onChange={(e) => setCadastro({ ...cadastro, corretoraId: e.target.value })}
-					/>
-				</label>
-				<label>
-					Saldo inicial
-					<input
-						type="text"
-						name="saldoInicial"
-						placeholder="ex.: 10000.00"
-						value={cadastro.saldoInicial}
-						onChange={(e) => setCadastro({ ...cadastro, saldoInicial: e.target.value })}
-					/>
-				</label>
-				<button type="submit">Criar carteira</button>
-			</form>
-			<form id="form-carteira-buscar-id" className="form-inline" onSubmit={handleBuscaId}>
-				<label>
-					ID da carteira
-					<input
-						type="number"
-						name="id"
-						min="1"
-						required
-						value={buscaIdValue}
-						onChange={(e) => setBuscaIdValue(e.target.value)}
-					/>
-				</label>
-				<button type="submit">Buscar por ID</button>
-			</form>
-			<form
-				id="form-carteira-por-usuario"
-				className="form-inline"
-				onSubmit={handleBuscaUsuario}
-			>
-				<label>
-					ID do usuário
-					<input
-						type="number"
-						name="usuarioId"
-						min="1"
-						required
-						id="carteira-list-usuario-id"
-						value={buscaUsuarioValue}
-						onChange={(e) => setBuscaUsuarioValue(e.target.value)}
-					/>
-				</label>
-				<button type="submit">Listar por usuário</button>
-			</form>
-			<h3 className="block-title">Atualizar carteira</h3>
-			<form id="form-carteira-atualizar" className="form-grid wide" onSubmit={handleAtualizar}>
-				<label>
-					ID da carteira
-					<input
-						type="number"
-						name="id"
-						min="1"
-						required
-						value={atualizar.id}
-						onChange={(e) => setAtualizar({ ...atualizar, id: e.target.value })}
-					/>
-				</label>
-				<label>
-					Nome
-					<input
-						type="text"
-						name="nomeDaCarteira"
-						placeholder="opcional"
-						value={atualizar.nomeDaCarteira}
-						onChange={(e) =>
-							setAtualizar({ ...atualizar, nomeDaCarteira: e.target.value })
-						}
-					/>
-				</label>
-				<label>
-					ID da corretora
-					<input
-						type="number"
-						name="corretoraId"
-						min="1"
-						placeholder="opcional"
-						value={atualizar.corretoraId}
-						onChange={(e) => setAtualizar({ ...atualizar, corretoraId: e.target.value })}
-					/>
-				</label>
-				<button type="submit">Salvar alterações</button>
-			</form>
-			<h3 className="block-title">Compra</h3>
-			<p className="hint">
-				Na compra, o servidor usa a <strong>cotação ao vivo</strong>; o valor abaixo é
-				estimativa pelo cadastro.
-			</p>
-			<form id="form-compra" className="form-grid wide" onSubmit={handleCompra}>
-				<label>
-					ID da carteira
-					<input
-						type="number"
-						name="carteiraId"
-						min="1"
-						required
-						value={compra.carteiraId}
-						onChange={(e) => setCompra({ ...compra, carteiraId: e.target.value })}
-					/>
-				</label>
-				<label>
-					ID da ação
-					<input
-						type="number"
-						name="acaoId"
-						min="1"
-						required
-						id="compra-acao-id"
-						value={compra.acaoId}
-						onChange={(e) => setCompra({ ...compra, acaoId: e.target.value })}
-						onBlur={() => carregarCotacaoCompra(compra.acaoId)}
-					/>
-				</label>
-				<label>
-					Quantidade
-					<input
-						type="text"
-						name="quantidade"
-						required
-						placeholder="ex.: 10"
-						id="compra-quantidade"
-						value={compra.quantidade}
-						onChange={(e) => setCompra({ ...compra, quantidade: e.target.value })}
-					/>
-				</label>
-				<label>
-					Cotação no cadastro (estimativa)
-					<input
-						type="text"
-						id="compra-preco-display"
-						readOnly
-						tabIndex={-1}
-						placeholder="Atualiza ao informar o ID da ação"
-						aria-live="polite"
-						value={compraPrecoDisplay}
-					/>
-				</label>
-				<p className="hint" id="compra-custo-par">
-					Custo estimado (cadastro): <strong id="compra-custo-total">{compraCustoTotal}</strong>
-				</p>
-				<button type="submit">Registrar compra</button>
-			</form>
-			<h3 className="block-title">Venda</h3>
-			<p className="hint">
-				O crédito no saldo usa a <strong>cotação ao vivo</strong> no momento da venda.
-			</p>
-			<form id="form-venda" className="form-grid wide" onSubmit={handleVenda}>
-				<label>
-					ID da carteira
-					<input
-						type="number"
-						name="carteiraId"
-						min="1"
-						required
-						value={venda.carteiraId}
-						onChange={(e) => setVenda({ ...venda, carteiraId: e.target.value })}
-					/>
-				</label>
-				<label>
-					ID da ação
-					<input
-						type="number"
-						name="acaoId"
-						min="1"
-						required
-						value={venda.acaoId}
-						onChange={(e) => setVenda({ ...venda, acaoId: e.target.value })}
-					/>
-				</label>
-				<label>
-					Quantidade
-					<input
-						type="text"
-						name="quantidade"
-						required
-						value={venda.quantidade}
-						onChange={(e) => setVenda({ ...venda, quantidade: e.target.value })}
-					/>
-				</label>
-				<button type="submit">Registrar venda</button>
-			</form>
-			<h3 className="block-title">Indicadores</h3>
-			<p className="hint">
-				<strong>Por ticker</strong>: preço médio e valores custo/mercado.{" "}
-				<strong>Média da carteira</strong>: soma dos valores de mercado ÷ quantidade total de
-				papéis.
-			</p>
-			<form
-				id="form-indicador-ticker"
-				className="form-inline wide"
-				onSubmit={handleIndicadorTicker}
-			>
-				<label>
-					ID da carteira
-					<input
-						type="number"
-						name="carteiraId"
-						min="1"
-						required
-						placeholder="ex.: 1"
-						value={indicadorTicker.carteiraId}
-						onChange={(e) =>
-							setIndicadorTicker({ ...indicadorTicker, carteiraId: e.target.value })
-						}
-					/>
-				</label>
-				<label>
-					Ticker
-					<input
-						type="text"
-						name="ticker"
-						required
-						placeholder="PETR4"
-						value={indicadorTicker.ticker}
-						onChange={(e) =>
-							setIndicadorTicker({ ...indicadorTicker, ticker: e.target.value })
-						}
-					/>
-				</label>
-				<button type="submit">Indicador por ticker</button>
-			</form>
-			<form
-				id="form-indicador-media-carteira"
-				className="form-inline wide"
-				onSubmit={handleIndicadorMedia}
-			>
-				<label>
-					ID da carteira
-					<input
-						type="number"
-						name="carteiraId"
-						min="1"
-						required
-						placeholder="ex.: 1"
-						id="indicador-media-carteira-id"
-						value={indicadorMedia.carteiraId}
-						onChange={(e) =>
-							setIndicadorMedia({ ...indicadorMedia, carteiraId: e.target.value })
-						}
-					/>
-				</label>
-				<button type="submit">Média da carteira inteira</button>
-			</form>
-			<h3 className="block-title">Excluir carteira</h3>
-			<p className="hint">
-				A carteira só pode ser excluída com <strong>saldo zerado</strong> e sem ações em
-				posição (venda tudo antes).
-			</p>
-			<form id="form-carteira-excluir" className="form-inline" onSubmit={handleExcluir}>
-				<label>
-					ID da carteira
-					<input
-						type="number"
-						name="id"
-						min="1"
-						required
-						value={excluirIdValue}
-						onChange={(e) => setExcluirIdValue(e.target.value)}
-					/>
-				</label>
-				<button type="submit" className="btn-danger">
-					Excluir carteira
-				</button>
-			</form>
-			<StatusMessage status={status} />
-			{tableRows && (
-				<DataTable
-					columns={COLUMNS}
-					rows={tableRows}
-					rowMapper={rowMapper}
-					getRowKey={(c, i) => c.id ?? i}
-				/>
-			)}
-			<JsonOutput data={jsonData} />
+		<div className="wallets-page">
+			<section className="wallets-page-head">
+				<div><p className="dashboard-eyebrow">Gestão de investimentos</p><h2>Carteiras</h2><p>Gerencie suas carteiras, posições e operações.</p></div>
+				<button type="button" className="wallet-primary-action" onClick={() => openDialog("create")}>+ Nova carteira</button>
+			</section>
+
+			{notice ? <PageNotice notice={notice} onClose={() => setNotice(null)} /> : null}
+
+			<section className="wallets-list-card dashboard-card" aria-labelledby="wallet-list-title">
+				<div className="wallets-list-head"><div><h3 id="wallet-list-title">Minhas carteiras</h3><p>Selecione uma carteira para ver detalhes e operar.</p></div><span>{formatNumber(wallets.length)} {wallets.length === 1 ? "carteira" : "carteiras"}</span></div>
+				<form className="wallet-filters" onSubmit={handleSearch}>
+					<label><span>ID</span><input type="number" min="1" placeholder="Ex.: 1" value={filters.id} onChange={(event) => setFilters({ ...filters, id: event.target.value })} /></label>
+					<label><span>Nome</span><input type="search" placeholder="Buscar pelo nome" value={filters.name} onChange={(event) => setFilters({ ...filters, name: event.target.value })} /></label>
+					<button type="submit" disabled={searching}>{searching ? "Buscando..." : "Buscar"}</button>
+					<button type="button" className="wallet-filter-clear" onClick={clearFilters}>Limpar</button>
+				</form>
+
+				{loadingWallets ? <WalletListLoading /> : loadError && wallets.length === 0 ? <InlineError message={loadError} onRetry={() => loadWallets()} /> : wallets.length === 0 ? <NoWallets onCreate={() => openDialog("create")} /> : visibleWallets.length === 0 ? <div className="wallet-filter-empty"><strong>Nenhuma carteira corresponde aos filtros.</strong><button type="button" onClick={clearFilters}>Limpar filtros</button></div> : (
+					<div className="wallet-picker" role="listbox" aria-label="Selecione uma carteira">
+						{visibleWallets.map((item) => <button key={item.id} type="button" role="option" aria-selected={String(item.id) === selectedId} className={"wallet-picker-item" + (String(item.id) === selectedId ? " wallet-picker-item--active" : "")} onClick={() => setSelectedId(String(item.id))}><span className="wallet-picker-id">#{item.id}</span><span className="wallet-picker-copy"><strong>{item.nomeDaCarteira}</strong><small>{item.corretoraId ? `Corretora #${item.corretoraId}` : "Sem corretora"}</small></span><span className="wallet-picker-balance"><small>Saldo</small><strong>{formatMoney(item.saldoTotal)}</strong></span></button>)}
+					</div>
+				)}
+			</section>
+
+			{wallets.length > 0 ? loadingDetail ? <WalletDetailLoading /> : loadError ? <InlineError message={loadError} onRetry={() => setRefreshKey((key) => key + 1)} /> : wallet ? <>
+				<SelectedWalletHeader wallet={wallet} brokers={brokers} deleting={deleting} onBuy={() => openDialog("buy")} onSell={() => openDialog("sell")} onEdit={() => openDialog("edit")} onDelete={handleDelete} />
+				<WalletKpis wallet={wallet} metrics={metrics} />
+				<section className="wallet-insights"><WalletDistribution distribution={distribution} patrimonio={metrics?.valorMercadoTotalCarteira} onBuy={() => openDialog("buy")} /><WalletSecondaryMetrics metrics={metrics} /></section>
+				<WalletPositions positions={positions} metrics={metrics} onBuy={() => openDialog("buy")} onSell={() => openDialog("sell")} />
+			</> : null : null}
+
+			{dialog === "create" ? <CreateWalletDialog usuarioId={usuarioId} brokers={brokers} loadingOptions={referencesLoading} optionsError={referencesError} onClose={() => setDialog(null)} onCreated={async (created) => { setDialog(null); setNotice({ type: "success", text: `Carteira #${created.id} criada com sucesso.` }); await refreshAfterChange(created.id); }} /> : null}
+			{dialog === "edit" && wallet ? <EditWalletDialog wallet={wallet} brokers={brokers} loadingOptions={referencesLoading} optionsError={referencesError} onClose={() => setDialog(null)} onSaved={async (updated) => { setDialog(null); setNotice({ type: "success", text: `Carteira #${updated.id} atualizada com sucesso.` }); await refreshAfterChange(updated.id); }} /> : null}
+			{dialog === "buy" && wallet ? <BuyDialog wallet={wallet} actions={actions} loadingOptions={referencesLoading} optionsError={referencesError} onClose={() => setDialog(null)} onCompleted={() => refreshAfterChange(wallet.id)} /> : null}
+			{dialog === "sell" && wallet ? <SellDialog wallet={wallet} positions={positions} onClose={() => setDialog(null)} onCompleted={() => refreshAfterChange(wallet.id)} /> : null}
 		</div>
 	);
+}
+
+function SelectedWalletHeader({ wallet, brokers, deleting, onBuy, onSell, onEdit, onDelete }) {
+	const broker = brokers.find((item) => String(item.id) === String(wallet.corretoraId));
+	return <section className="selected-wallet-head dashboard-card"><div className="selected-wallet-identity"><span className="wallet-id">ID {wallet.id}</span><div><h3>{wallet.nomeDaCarteira}</h3><p>{wallet.corretoraId ? (broker?.nomeFantasia || broker?.razaoSocial || `Corretora #${wallet.corretoraId}`) : "Sem corretora associada"}</p></div></div><div className="selected-wallet-actions"><button type="button" className="wallet-action wallet-action--buy" onClick={onBuy}>Comprar</button><button type="button" className="wallet-action" onClick={onSell} disabled={!wallet.posicoes?.length}>Vender</button><button type="button" className="wallet-action wallet-action--secondary" onClick={onEdit}>Editar carteira</button><button type="button" className="wallet-action wallet-action--danger" onClick={onDelete} disabled={deleting}>{deleting ? "Excluindo..." : "Excluir"}</button></div></section>;
+}
+
+function WalletKpis({ wallet, metrics }) {
+	const cards = [{ label: "Saldo disponível", value: formatMoney(wallet.saldoTotal), note: "Disponível para investir" }, { label: "Total investido", value: formatMoney(metrics?.custoTotalCarteira), note: "Custo atual da carteira" }, { label: "Patrimônio atual", value: formatMoney(metrics?.valorMercadoTotalCarteira), note: "Valor de mercado" }, { label: "Rentabilidade atual", value: formatPercent(metrics?.rentabilidadeNaoRealizadaPercentual), tone: valueTone(metrics?.rentabilidadeNaoRealizadaPercentual), note: "Resultado não realizado" }, { label: "Resultado realizado", value: formatMoney(wallet.lucroPrejuizoRealizado), tone: valueTone(wallet.lucroPrejuizoRealizado), note: "Lucro ou prejuízo acumulado" }];
+	return <section className="kpi-grid wallets-kpi-grid" aria-label="Indicadores da carteira">{cards.map((card) => <article className="kpi-card" key={card.label}><span>{card.label}</span><strong className={card.tone ? `value--${card.tone}` : ""}>{card.value}</strong><small>{card.note}</small></article>)}</section>;
+}
+
+function WalletDistribution({ distribution, patrimonio, onBuy }) {
+	const data = { labels: distribution.map((item) => item.ticker), datasets: [{ data: distribution.map((item) => item.marketValue), backgroundColor: distribution.map((item) => item.color), borderColor: "transparent", borderWidth: 0, hoverOffset: 4 }] };
+	const options = { responsive: true, maintainAspectRatio: false, cutout: "72%", plugins: { legend: { display: false }, walletCenterText: { value: formatMoney(patrimonio) }, tooltip: { callbacks: { label(context) { const item = distribution[context.dataIndex]; return ` ${item.ticker}: ${formatMoney(item.marketValue)} (${formatPercent(item.percentage).replace("+", "")})`; } } } } };
+	return <article className="dashboard-card wallet-distribution"><header className="dashboard-card-head"><div><h3>Distribuição da carteira</h3><p>Participação por valor de mercado</p></div></header>{distribution.length === 0 ? <WalletNoPositions onBuy={onBuy} compact /> : <div className="distribution-content"><div className="donut-wrap"><Doughnut data={data} options={options} /></div><ul className="distribution-legend">{distribution.map((item) => <li key={item.acaoId ?? item.ticker}><span className="legend-dot" style={{ backgroundColor: item.color }} /><strong>{item.ticker}</strong><span>{formatPercent(item.percentage).replace("+", "")}</span></li>)}</ul></div>}</article>;
+}
+
+function WalletSecondaryMetrics({ metrics }) {
+	return <article className="dashboard-card summary-card"><header className="dashboard-card-head"><div><h3>Indicadores complementares</h3><p>Médias e composição atual</p></div></header><dl className="summary-list"><div><dt>Preço médio da carteira</dt><dd>{formatMoney(metrics?.mediaPrecoMedioPonderado)}</dd></div><div><dt>Valor médio por título</dt><dd>{formatMoney(metrics?.mediaValorMercadoPorTitulo)}</dd></div><div><dt>Posições</dt><dd>{formatNumber(metrics?.quantidadePosicoes)}</dd></div><div><dt>Total de ações</dt><dd>{formatNumber(metrics?.quantidadeTotalTitulos)}</dd></div></dl></article>;
+}
+
+function WalletPositions({ positions, metrics, onBuy, onSell }) {
+	return <section className="dashboard-card wallet-positions-card"><header className="dashboard-card-head wallet-positions-head"><div><h3>Posições</h3><p>{formatNumber(metrics?.quantidadePosicoes)} posições · {formatNumber(metrics?.quantidadeTotalTitulos)} ações</p></div><div><button type="button" className="wallet-link-action" onClick={onBuy}>Comprar</button>{positions.length > 0 ? <button type="button" className="wallet-link-action" onClick={onSell}>Vender</button> : null}</div></header>{positions.length === 0 ? <WalletNoPositions onBuy={onBuy} /> : <div className="dashboard-table-wrap"><table className="dashboard-table wallet-positions-table"><thead><tr><th>ID</th><th>Ativo</th><th>Quantidade</th><th>Preço médio</th><th>Cotação</th><th>Custo</th><th>Valor atual</th><th>Resultado atual</th></tr></thead><tbody>{positions.map((position) => { const result = Number(position.valorMercadoAtual) - Number(position.valorCustoTotal); const cost = Number(position.valorCustoTotal); const resultPercent = cost > 0 ? (result / cost) * 100 : null; const tone = valueTone(result); return <tr key={position.acaoId ?? position.ticker}><td><span className="table-id">#{position.acaoId}</span></td><td><strong>{position.ticker}</strong>{position.nomeEmpresa ? <small>{position.nomeEmpresa}</small> : null}</td><td>{formatNumber(position.quantidade)}</td><td>{formatMoney(position.precoMedioPonderado)}</td><td>{formatMoney(position.cotacaoAtual)}</td><td>{formatMoney(position.valorCustoTotal)}</td><td><strong>{formatMoney(position.valorMercadoAtual)}</strong></td><td><strong className={`value--${tone}`}>{formatMoney(result)}</strong>{resultPercent != null ? <small className={`value--${tone}`}>{formatPercent(resultPercent)}</small> : null}</td></tr>; })}</tbody></table></div>}</section>;
+}
+
+function CreateWalletDialog({ usuarioId, brokers, loadingOptions, optionsError, onClose, onCreated }) {
+	const [form, setForm] = useState({ name: "", brokerId: "", initialBalance: "" });
+	const [status, setStatus] = useState(EMPTY_FORM_STATUS);
+	const [submitting, setSubmitting] = useState(false);
+	async function submit(event) { event.preventDefault(); if (submitting) return; setSubmitting(true); setStatus(EMPTY_FORM_STATUS); const body = { usuarioId: Number(usuarioId), nomeDaCarteira: form.name.trim() }; if (form.brokerId) body.corretoraId = Number(form.brokerId); if (String(form.initialBalance).trim()) body.saldoInicial = form.initialBalance; try { const created = await api("POST", "/carteiras", body); await onCreated(created); } catch (error) { setStatus({ text: error.message || "Não foi possível criar a carteira.", error: true }); } finally { setSubmitting(false); } }
+	return <WalletDialog title="Nova carteira" subtitle="Crie uma carteira vinculada à sua conta." onClose={onClose}><form className="wallet-dialog-form" onSubmit={submit}><label><span>Nome da carteira</span><input type="text" required autoFocus maxLength="100" placeholder="Ex.: Carteira Principal" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label><span>Corretora <small>opcional</small></span><select value={form.brokerId} onChange={(event) => setForm({ ...form, brokerId: event.target.value })} disabled={loadingOptions}><option value="">Sem corretora</option>{brokers.map((broker) => <option key={broker.id} value={broker.id}>{broker.id} — {broker.nomeFantasia || broker.razaoSocial}</option>)}</select></label><label><span>Saldo inicial <small>opcional</small></span><div className="money-input"><span>R$</span><input type="number" min="0" step="0.01" placeholder="0,00" value={form.initialBalance} onChange={(event) => setForm({ ...form, initialBalance: event.target.value })} /></div></label>{optionsError ? <FormMessage status={{ text: optionsError, error: true }} /> : null}<FormMessage status={status} /><DialogActions onClose={onClose} submitting={submitting} submitLabel="Criar carteira" busyLabel="Criando..." /></form></WalletDialog>;
+}
+
+function EditWalletDialog({ wallet, brokers, loadingOptions, optionsError, onClose, onSaved }) {
+	const [form, setForm] = useState({ name: wallet.nomeDaCarteira || "", brokerId: wallet.corretoraId != null ? String(wallet.corretoraId) : "" });
+	const [status, setStatus] = useState(EMPTY_FORM_STATUS);
+	const [submitting, setSubmitting] = useState(false);
+	async function submit(event) { event.preventDefault(); if (submitting) return; setSubmitting(true); setStatus(EMPTY_FORM_STATUS); const body = { nomeDaCarteira: form.name.trim() }; if (form.brokerId) body.corretoraId = Number(form.brokerId); try { const updated = await api("PUT", "/carteiras/" + encodeURIComponent(wallet.id), body); await onSaved(updated); } catch (error) { setStatus({ text: error.message || "Não foi possível atualizar a carteira.", error: true }); } finally { setSubmitting(false); } }
+	return <WalletDialog title="Editar carteira" subtitle={`Carteira #${wallet.id}`} onClose={onClose}><form className="wallet-dialog-form" onSubmit={submit}><label><span>Nome da carteira</span><input type="text" required autoFocus maxLength="100" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label><span>Corretora</span><select value={form.brokerId} onChange={(event) => setForm({ ...form, brokerId: event.target.value })} disabled={loadingOptions}><option value="">{wallet.corretoraId ? "Manter corretora atual" : "Sem corretora"}</option>{brokers.map((broker) => <option key={broker.id} value={broker.id}>{broker.id} — {broker.nomeFantasia || broker.razaoSocial}</option>)}</select></label><p className="wallet-form-hint">O saldo e as posições são alterados somente pelas operações financeiras.</p>{optionsError ? <FormMessage status={{ text: optionsError, error: true }} /> : null}<FormMessage status={status} /><DialogActions onClose={onClose} submitting={submitting} submitLabel="Salvar alterações" busyLabel="Salvando..." /></form></WalletDialog>;
+}
+
+function BuyDialog({ wallet, actions, loadingOptions, optionsError, onClose, onCompleted }) {
+	const [form, setForm] = useState({ actionId: "", quantity: "" });
+	const [status, setStatus] = useState(EMPTY_FORM_STATUS);
+	const [submitting, setSubmitting] = useState(false);
+	const [receipt, setReceipt] = useState(null);
+	const selectedAction = actions.find((item) => String(item.id) === form.actionId);
+	const estimated = selectedAction?.cotacaoAtual != null && Number(form.quantity) > 0 ? Number(selectedAction.cotacaoAtual) * Number(form.quantity) : null;
+	async function submit(event) { event.preventDefault(); if (submitting) return; setSubmitting(true); setStatus(EMPTY_FORM_STATUS); try { const result = await api("POST", "/carteiras/" + encodeURIComponent(wallet.id) + "/compras", { acaoId: Number(form.actionId), quantidade: form.quantity }); setReceipt(result); await onCompleted(); } catch (error) { setStatus({ text: error.message || "Não foi possível registrar a compra.", error: true }); } finally { setSubmitting(false); } }
+	if (receipt) return <WalletDialog title="Compra realizada" subtitle={`Carteira #${wallet.id} — ${wallet.nomeDaCarteira}`} onClose={onClose}><OperationReceipt result={receipt} operation="buy" /><div className="wallet-dialog-actions"><button type="button" className="wallet-dialog-submit" onClick={onClose}>Concluir</button></div></WalletDialog>;
+	return <WalletDialog title="Comprar ativo" subtitle={`Carteira #${wallet.id} — ${wallet.nomeDaCarteira}`} onClose={onClose}><form className="wallet-dialog-form" onSubmit={submit}><div className="operation-wallet-summary"><span>Saldo disponível</span><strong>{formatMoney(wallet.saldoTotal)}</strong></div><label><span>Ativo</span><select required autoFocus value={form.actionId} onChange={(event) => setForm({ ...form, actionId: event.target.value })} disabled={loadingOptions}><option value="">Selecione uma ação</option>{actions.map((action) => <option key={action.id} value={action.id}>{action.id} — {action.ticker}{action.nomeEmpresa ? ` — ${action.nomeEmpresa}` : ""}</option>)}</select></label><label><span>Quantidade</span><input type="number" required min="0.00000001" step="any" placeholder="Ex.: 10" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label><OperationEstimate quote={selectedAction?.cotacaoAtual} total={estimated} />{optionsError ? <FormMessage status={{ text: optionsError, error: true }} /> : null}<FormMessage status={status} /><DialogActions onClose={onClose} submitting={submitting} submitLabel="Confirmar compra" busyLabel="Comprando..." disabled={!actions.length} /></form></WalletDialog>;
+}
+
+function SellDialog({ wallet, positions, onClose, onCompleted }) {
+	const [form, setForm] = useState({ actionId: positions[0]?.acaoId != null ? String(positions[0].acaoId) : "", quantity: "" });
+	const [status, setStatus] = useState(EMPTY_FORM_STATUS);
+	const [submitting, setSubmitting] = useState(false);
+	const [receipt, setReceipt] = useState(null);
+	const selectedPosition = positions.find((item) => String(item.acaoId) === form.actionId);
+	async function submit(event) { event.preventDefault(); if (submitting) return; setSubmitting(true); setStatus(EMPTY_FORM_STATUS); try { const result = await api("POST", "/carteiras/" + encodeURIComponent(wallet.id) + "/vendas", { acaoId: Number(form.actionId), quantidade: form.quantity }); setReceipt(result); await onCompleted(); } catch (error) { setStatus({ text: error.message || "Não foi possível registrar a venda.", error: true }); } finally { setSubmitting(false); } }
+	if (receipt) return <WalletDialog title="Venda realizada" subtitle={`Carteira #${wallet.id} — ${wallet.nomeDaCarteira}`} onClose={onClose}><OperationReceipt result={receipt} operation="sell" /><div className="wallet-dialog-actions"><button type="button" className="wallet-dialog-submit" onClick={onClose}>Concluir</button></div></WalletDialog>;
+	return <WalletDialog title="Vender posição" subtitle={`Carteira #${wallet.id} — ${wallet.nomeDaCarteira}`} onClose={onClose}><form className="wallet-dialog-form" onSubmit={submit}><label><span>Posição</span><select required autoFocus value={form.actionId} onChange={(event) => setForm({ ...form, actionId: event.target.value })}>{positions.map((position) => <option key={position.acaoId} value={position.acaoId}>{position.acaoId} — {position.ticker} — {formatNumber(position.quantidade)} ações</option>)}</select></label>{selectedPosition ? <div className="position-reference-grid"><div><span>Disponível</span><strong>{formatNumber(selectedPosition.quantidade)}</strong></div><div><span>Preço médio</span><strong>{formatMoney(selectedPosition.precoMedioPonderado)}</strong></div><div><span>Cotação de referência</span><strong>{formatMoney(selectedPosition.cotacaoAtual)}</strong></div></div> : null}<label><span>Quantidade a vender</span><input type="number" required min="0.00000001" max={selectedPosition?.quantidade} step="any" placeholder="Ex.: 5" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label><p className="wallet-form-hint">A cotação final será consultada pelo backend no momento da operação.</p><FormMessage status={status} /><DialogActions onClose={onClose} submitting={submitting} submitLabel="Confirmar venda" busyLabel="Vendendo..." /></form></WalletDialog>;
+}
+
+function OperationEstimate({ quote, total }) {
+	return <div className="operation-estimate"><div><span>Cotação conhecida</span><strong>{quote != null ? formatMoney(quote) : "Indisponível"}</strong></div><div><span>Custo estimado</span><strong>{total != null && Number.isFinite(total) ? formatMoney(total) : "—"}</strong></div><p>Estimativa baseada na cotação exibida. O backend utilizará a cotação ao vivo na confirmação.</p></div>;
+}
+
+function OperationReceipt({ result, operation }) {
+	const tone = valueTone(result.lucroPrejuizoRealizadoCarteira);
+	return <div className="operation-receipt"><span className="operation-success-icon" aria-hidden="true">✓</span><h3>{operation === "buy" ? "Compra registrada com sucesso" : "Venda registrada com sucesso"}</h3><dl><div><dt>Ativo</dt><dd>#{result.acaoId} — {result.ticker}</dd></div><div><dt>Quantidade</dt><dd>{formatNumber(result.quantidade)}</dd></div><div><dt>Preço utilizado</dt><dd>{formatMoney(result.precoUnitario)}</dd></div><div><dt>Saldo após operação</dt><dd>{formatMoney(result.saldoCarteiraApos)}</dd></div>{operation === "sell" ? <div><dt>Resultado realizado acumulado</dt><dd className={`value--${tone}`}>{formatMoney(result.lucroPrejuizoRealizadoCarteira)}</dd></div> : null}</dl><p>Os indicadores e as posições da carteira já foram atualizados.</p></div>;
+}
+
+function WalletDialog({ title, subtitle, onClose, children }) {
+	useEffect(() => { function handleKey(event) { if (event.key === "Escape") onClose(); } document.addEventListener("keydown", handleKey); return () => document.removeEventListener("keydown", handleKey); }, [onClose]);
+	return <div className="wallet-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="wallet-dialog" role="dialog" aria-modal="true" aria-labelledby="wallet-dialog-title"><header><div><h2 id="wallet-dialog-title">{title}</h2><p>{subtitle}</p></div><button type="button" className="wallet-dialog-close" aria-label="Fechar" onClick={onClose}>×</button></header>{children}</section></div>;
+}
+
+function DialogActions({ onClose, submitting, submitLabel, busyLabel, disabled = false }) {
+	return <div className="wallet-dialog-actions"><button type="button" className="wallet-dialog-cancel" onClick={onClose} disabled={submitting}>Cancelar</button><button type="submit" className="wallet-dialog-submit" disabled={submitting || disabled}>{submitting ? busyLabel : submitLabel}</button></div>;
+}
+
+function FormMessage({ status }) {
+	if (!status?.text) return null;
+	return <p className={"wallet-form-message" + (status.error ? " wallet-form-message--error" : "")} role={status.error ? "alert" : "status"}>{status.text}</p>;
+}
+
+function PageNotice({ notice, onClose }) {
+	return <div className={`wallet-page-notice wallet-page-notice--${notice.type}`} role={notice.type === "error" ? "alert" : "status"}><span>{notice.text}</span>{notice.type !== "loading" ? <button type="button" onClick={onClose} aria-label="Fechar mensagem">×</button> : null}</div>;
+}
+
+function NoWallets({ onCreate }) {
+	return <div className="wallets-empty"><span className="empty-icon" aria-hidden="true"><WalletIcon /></span><h3>Você ainda não possui uma carteira.</h3><p>Crie sua primeira carteira para começar a organizar seus investimentos.</p><button type="button" onClick={onCreate}>Criar minha primeira carteira</button></div>;
+}
+
+function WalletNoPositions({ onBuy, compact = false }) {
+	return <div className={"wallet-positions-empty" + (compact ? " wallet-positions-empty--compact" : "")}><strong>Esta carteira ainda não possui posições.</strong><p>Registre uma compra para começar a acompanhar sua distribuição.</p><button type="button" onClick={onBuy}>Registrar primeira compra</button></div>;
+}
+
+function InlineError({ message, onRetry }) {
+	return <div className="wallet-inline-error" role="alert"><strong>Não foi possível carregar os dados.</strong><span>{message}</span><button type="button" onClick={onRetry}>Tentar novamente</button></div>;
+}
+
+function WalletListLoading() {
+	return <div className="wallet-list-loading" aria-label="Carregando carteiras">{[0, 1, 2].map((item) => <span key={item} />)}</div>;
+}
+
+function WalletDetailLoading() {
+	return <div className="wallet-detail-loading" aria-label="Carregando carteira"><div /><section>{[0, 1, 2, 3, 4].map((item) => <span key={item} />)}</section><div /></div>;
+}
+
+function WalletIcon() {
+	return <svg viewBox="0 0 24 24"><path d="M4 7.5h14a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2h11" /><path d="M20 12h-5a2 2 0 0 0 0 4h5" /></svg>;
 }

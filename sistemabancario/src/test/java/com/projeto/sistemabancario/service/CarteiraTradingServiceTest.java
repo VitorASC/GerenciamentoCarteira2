@@ -1,11 +1,11 @@
 package com.projeto.sistemabancario.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -16,11 +16,9 @@ import com.projeto.sistemabancario.domains.entity.Acao;
 import com.projeto.sistemabancario.domains.entity.CarteiraInvestimento;
 import com.projeto.sistemabancario.domains.entity.PosicaoCarteira;
 import com.projeto.sistemabancario.domains.entity.Usuario;
-import com.projeto.sistemabancario.domains.enums.Mercado;
 import com.projeto.sistemabancario.dto.request.CompraAcaoRequest;
 import com.projeto.sistemabancario.dto.request.VendaAcaoRequest;
-import com.projeto.sistemabancario.integration.cotacao.CotacaoConsultationPort;
-import com.projeto.sistemabancario.integration.dto.CotacaoConsultaResult;
+import com.projeto.sistemabancario.exception.RegraNegocioException;
 import com.projeto.sistemabancario.repository.AcaoRepository;
 import com.projeto.sistemabancario.repository.CarteiraInvestimentoRepository;
 import com.projeto.sistemabancario.repository.PosicaoCarteiraRepository;
@@ -30,7 +28,6 @@ class CarteiraTradingServiceTest {
 	private CarteiraInvestimentoRepository carteiras;
 	private AcaoRepository acoes;
 	private PosicaoCarteiraRepository posicoes;
-	private CotacaoConsultationPort cotacoes;
 	private CarteiraTradingService service;
 	private CarteiraInvestimento carteira;
 	private Acao acao;
@@ -40,8 +37,7 @@ class CarteiraTradingServiceTest {
 		carteiras = mock(CarteiraInvestimentoRepository.class);
 		acoes = mock(AcaoRepository.class);
 		posicoes = mock(PosicaoCarteiraRepository.class);
-		cotacoes = mock(CotacaoConsultationPort.class);
-		service = new CarteiraTradingService(carteiras, acoes, posicoes, cotacoes);
+		service = new CarteiraTradingService(carteiras, acoes, posicoes);
 
 		Usuario usuario = new Usuario();
 		ReflectionTestUtils.setField(usuario, "id", 7L);
@@ -54,8 +50,8 @@ class CarteiraTradingServiceTest {
 		acao = new Acao();
 		ReflectionTestUtils.setField(acao, "id", 2L);
 		acao.setTicker("PETR4");
-		acao.setMercado(Mercado.BRASIL);
 		acao.setMoeda("BRL");
+		acao.setCotacaoAtual(new BigDecimal("49.00"));
 
 		when(carteiras.findById(1L)).thenReturn(Optional.of(carteira));
 		when(acoes.findById(2L)).thenReturn(Optional.of(acao));
@@ -65,32 +61,27 @@ class CarteiraTradingServiceTest {
 
 	@Test
 	void compraPonderadaVendaParcialRecompraEVendaTotalPreservamCustoDaPosicaoAtual() {
-		when(cotacoes.buscar(Mercado.BRASIL, "PETR4")).thenReturn(
-				Optional.of(cotacao("100")),
-				Optional.of(cotacao("150")),
-				Optional.of(cotacao("160")),
-				Optional.of(cotacao("200")),
-				Optional.of(cotacao("155")));
-
-		service.comprar(1L, new CompraAcaoRequest(2L, new BigDecimal("10")), 7L);
+		service.comprar(1L, new CompraAcaoRequest(2L, new BigDecimal("10"), new BigDecimal("100")), 7L);
 		PosicaoCarteira posicao = carteira.getPosicoes().get(0);
 		assertThat(posicao.getQuantidade()).isEqualByComparingTo("10");
 		assertThat(posicao.getPrecoMedioPonderado()).isEqualByComparingTo("100");
+		assertThat(acao.getCotacaoAtual()).isEqualByComparingTo("49");
 
-		service.comprar(1L, new CompraAcaoRequest(2L, new BigDecimal("10")), 7L);
+		service.comprar(1L, new CompraAcaoRequest(2L, new BigDecimal("10"), new BigDecimal("150")), 7L);
 		assertThat(posicao.getQuantidade()).isEqualByComparingTo("20");
 		assertThat(posicao.getPrecoMedioPonderado()).isEqualByComparingTo("125");
 
-		var vendaParcial = service.vender(1L, new VendaAcaoRequest(2L, new BigDecimal("5")), 7L);
+		var vendaParcial = service.vender(1L, new VendaAcaoRequest(2L, new BigDecimal("5"), new BigDecimal("160")), 7L);
 		assertThat(posicao.getQuantidade()).isEqualByComparingTo("15");
 		assertThat(posicao.getPrecoMedioPonderado()).isEqualByComparingTo("125");
 		assertThat(vendaParcial.lucroPrejuizoRealizadoCarteira()).isEqualByComparingTo("175");
+		assertThat(acao.getCotacaoAtual()).isEqualByComparingTo("49");
 
-		service.comprar(1L, new CompraAcaoRequest(2L, new BigDecimal("10")), 7L);
+		service.comprar(1L, new CompraAcaoRequest(2L, new BigDecimal("10"), new BigDecimal("200")), 7L);
 		assertThat(posicao.getQuantidade()).isEqualByComparingTo("25");
 		assertThat(posicao.getPrecoMedioPonderado()).isEqualByComparingTo("155");
 
-		service.vender(1L, new VendaAcaoRequest(2L, new BigDecimal("25")), 7L);
+		service.vender(1L, new VendaAcaoRequest(2L, new BigDecimal("25"), new BigDecimal("155")), 7L);
 		assertThat(carteira.getPosicoes()).isEmpty();
 		assertThat(carteira.getLucroPrejuizoRealizado()).isEqualByComparingTo("175");
 	}
@@ -99,13 +90,28 @@ class CarteiraTradingServiceTest {
 	void vendaComPrejuizoMantemPrecoMedioDaPosicaoRemanescente() {
 		PosicaoCarteira posicao = posicao("20", "125");
 		carteira.getPosicoes().add(posicao);
-		when(cotacoes.buscar(Mercado.BRASIL, "PETR4")).thenReturn(Optional.of(cotacao("100")));
 
-		var resposta = service.vender(1L, new VendaAcaoRequest(2L, new BigDecimal("5")), 7L);
+		var resposta = service.vender(1L, new VendaAcaoRequest(2L, new BigDecimal("5"), new BigDecimal("100")), 7L);
 
 		assertThat(posicao.getQuantidade()).isEqualByComparingTo("15");
 		assertThat(posicao.getPrecoMedioPonderado()).isEqualByComparingTo("125");
 		assertThat(resposta.lucroPrejuizoRealizadoCarteira()).isEqualByComparingTo("-125");
+	}
+
+	@Test
+	void rejeitaPrecoDeOperacaoNuloZeroOuNegativo() {
+		assertThatThrownBy(() -> service.comprar(1L,
+				new CompraAcaoRequest(2L, new BigDecimal("1"), null), 7L))
+				.isInstanceOf(RegraNegocioException.class);
+		assertThatThrownBy(() -> service.comprar(1L,
+				new CompraAcaoRequest(2L, new BigDecimal("1"), BigDecimal.ZERO), 7L))
+				.isInstanceOf(RegraNegocioException.class);
+
+		PosicaoCarteira posicao = posicao("1", "100");
+		carteira.getPosicoes().add(posicao);
+		assertThatThrownBy(() -> service.vender(1L,
+				new VendaAcaoRequest(2L, new BigDecimal("1"), new BigDecimal("-1")), 7L))
+				.isInstanceOf(RegraNegocioException.class);
 	}
 
 	private PosicaoCarteira posicao(String quantidade, String precoMedio) {
@@ -117,7 +123,4 @@ class CarteiraTradingServiceTest {
 		return posicao;
 	}
 
-	private static CotacaoConsultaResult cotacao(String preco) {
-		return new CotacaoConsultaResult("PETR4", "Petrobras", "BRL", new BigDecimal(preco), Instant.parse("2026-09-09T15:00:00Z"));
-	}
 }

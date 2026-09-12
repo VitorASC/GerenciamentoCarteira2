@@ -73,7 +73,7 @@ public class CarteiraController {
 
 	@PutMapping("/{id}")
 	public CarteiraResponse atualizar(@AuthenticationPrincipal UsuarioPrincipal principal, @PathVariable Long id,
-			@RequestBody CarteiraAtualizacaoRequest request) {
+			@Valid @RequestBody CarteiraAtualizacaoRequest request) {
 		return carteiraService.atualizar(id, request, principal.getUsuarioId());
 	}
 

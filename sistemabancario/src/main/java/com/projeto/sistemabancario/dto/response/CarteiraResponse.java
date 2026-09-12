@@ -12,5 +12,6 @@ public record CarteiraResponse(
 		BigDecimal lucroPrejuizoRealizado,
 		Long corretoraId,
 		LocalDateTime dataCriacao,
+		boolean possuiOperacoes,
 		List<PosicaoCarteiraResponse> posicoes) {
 }

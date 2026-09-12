@@ -2872,9 +2872,29 @@ tr:last-child td {
 
 .operation-wallet-summary span,
 .operation-estimate span,
+.operation-price-grid span,
 .position-reference-grid span {
 	color: var(--text-muted);
 	font-size: 0.7rem;
+}
+
+.operation-price-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+	align-items: end;
+}
+
+.operation-price-grid > div:first-child {
+	display: flex;
+	min-height: 4.2rem;
+	justify-content: center;
+	flex-direction: column;
+	gap: 0.3rem;
+	padding: 0.8rem;
+	border: 1px solid var(--border);
+	border-radius: 0.7rem;
+	background: var(--bg-input);
 }
 
 .operation-wallet-summary strong {
@@ -2900,6 +2920,10 @@ tr:last-child td {
 
 .operation-estimate > div + div {
 	border-left: 1px solid var(--border);
+}
+
+.operation-estimate--buy > div {
+	grid-column: 1 / -1;
 }
 
 .operation-estimate > p {
@@ -3163,6 +3187,7 @@ tr:last-child td {
 	}
 
 	.position-reference-grid,
+	.operation-price-grid,
 	.operation-receipt dl {
 		grid-template-columns: 1fr;
 	}

@@ -7,5 +7,6 @@ import jakarta.validation.constraints.Positive;
 
 public record CompraAcaoRequest(
 		@NotNull Long acaoId,
-		@NotNull @Positive BigDecimal quantidade) {
+		@NotNull @Positive BigDecimal quantidade,
+		@NotNull @Positive BigDecimal precoUnitario) {
 }

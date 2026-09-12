@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,8 +14,6 @@ import com.projeto.sistemabancario.dto.request.VendaAcaoRequest;
 import com.projeto.sistemabancario.dto.response.OperacaoCarteiraResponse;
 import com.projeto.sistemabancario.exception.RegraNegocioException;
 import com.projeto.sistemabancario.exception.ResourceNotFoundException;
-import com.projeto.sistemabancario.integration.cotacao.CotacaoConsultationPort;
-import com.projeto.sistemabancario.integration.dto.CotacaoConsultaResult;
 import com.projeto.sistemabancario.domains.entity.Acao;
 import com.projeto.sistemabancario.domains.entity.CarteiraInvestimento;
 import com.projeto.sistemabancario.domains.entity.PosicaoCarteira;
@@ -34,15 +31,12 @@ public class CarteiraTradingService {
 	private final CarteiraInvestimentoRepository carteiraInvestimentoRepository;
 	private final AcaoRepository acaoRepository;
 	private final PosicaoCarteiraRepository posicaoCarteiraRepository;
-	private final CotacaoConsultationPort cotacaoConsultationPort;
 
 	public CarteiraTradingService(CarteiraInvestimentoRepository carteiraInvestimentoRepository,
-			AcaoRepository acaoRepository, PosicaoCarteiraRepository posicaoCarteiraRepository,
-			CotacaoConsultationPort cotacaoConsultationPort) {
+			AcaoRepository acaoRepository, PosicaoCarteiraRepository posicaoCarteiraRepository) {
 		this.carteiraInvestimentoRepository = carteiraInvestimentoRepository;
 		this.acaoRepository = acaoRepository;
 		this.posicaoCarteiraRepository = posicaoCarteiraRepository;
-		this.cotacaoConsultationPort = cotacaoConsultationPort;
 	}
 
 	@Transactional
@@ -51,19 +45,8 @@ public class CarteiraTradingService {
 		Acao acao = acaoRepository.findById(request.acaoId())
 			.orElseThrow(() -> new ResourceNotFoundException("Ação não encontrada."));
 
-		CotacaoConsultaResult cotacaoMercado = cotacaoConsultationPort.buscar(acao.getMercado(), acao.getTicker())
-			.orElseThrow(() -> new RegraNegocioException(
-					"Não foi possível obter a cotação atual na API externa para registrar a compra. Verifique o ticker, o mercado e as chaves BRAPI / Alpha Vantage."));
-
 		BigDecimal quantidade = request.quantidade().setScale(8, RoundingMode.HALF_UP);
-		BigDecimal precoUnitario = cotacaoMercado.preco().setScale(6, RoundingMode.HALF_UP);
-		LocalDateTime dataHoraCotacao = LocalDateTime.ofInstant(cotacaoMercado.dataHoraReferencia(), ZoneId.systemDefault());
-		acao.setCotacaoAtual(precoUnitario);
-		acao.setDataHoraCotacao(dataHoraCotacao);
-		if (cotacaoMercado.nomeEmpresa() != null && !cotacaoMercado.nomeEmpresa().isBlank()) {
-			acao.setNomeEmpresa(cotacaoMercado.nomeEmpresa());
-		}
-		acaoRepository.save(acao);
+		BigDecimal precoUnitario = validarPrecoOperacao(request.precoUnitario());
 
 		BigDecimal custo = quantidade.multiply(precoUnitario, MC);
 
@@ -113,18 +96,7 @@ public class CarteiraTradingService {
 			throw new RegraNegocioException("Quantidade à venda maior que a posição atual.");
 		}
 
-		CotacaoConsultaResult cotacaoMercado = cotacaoConsultationPort.buscar(acao.getMercado(), acao.getTicker())
-			.orElseThrow(() -> new RegraNegocioException(
-					"Não foi possível obter a cotação atual na API externa para registrar a venda. Verifique o ticker, o mercado e as chaves BRAPI / Alpha Vantage."));
-
-		BigDecimal precoVenda = cotacaoMercado.preco().setScale(6, RoundingMode.HALF_UP);
-		LocalDateTime dataHoraVenda = LocalDateTime.ofInstant(cotacaoMercado.dataHoraReferencia(), ZoneId.systemDefault());
-		acao.setCotacaoAtual(precoVenda);
-		acao.setDataHoraCotacao(dataHoraVenda);
-		if (cotacaoMercado.nomeEmpresa() != null && !cotacaoMercado.nomeEmpresa().isBlank()) {
-			acao.setNomeEmpresa(cotacaoMercado.nomeEmpresa());
-		}
-		acaoRepository.save(acao);
+		BigDecimal precoVenda = validarPrecoOperacao(request.precoUnitario());
 
 		BigDecimal pm = posicao.getPrecoMedioPonderado();
 		BigDecimal qRestante = posicao.getQuantidade().subtract(quantidade, MC);
@@ -179,6 +151,13 @@ public class CarteiraTradingService {
 		t.setDataHora(LocalDateTime.now());
 		carteira.getTransacoes().add(t);
 		return t;
+	}
+
+	private static BigDecimal validarPrecoOperacao(BigDecimal precoUnitario) {
+		if (precoUnitario == null || precoUnitario.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new RegraNegocioException("O preço da operação deve ser maior que zero.");
+		}
+		return precoUnitario.setScale(6, RoundingMode.HALF_UP);
 	}
 
 	private static OperacaoCarteiraResponse toOperacaoResponse(Transacao t, CarteiraInvestimento carteira) {

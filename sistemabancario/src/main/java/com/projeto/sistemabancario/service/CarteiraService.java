@@ -25,6 +25,7 @@ import com.projeto.sistemabancario.domains.entity.Usuario;
 import com.projeto.sistemabancario.repository.CarteiraInvestimentoRepository;
 import com.projeto.sistemabancario.repository.CorretoraRepository;
 import com.projeto.sistemabancario.repository.PosicaoCarteiraRepository;
+import com.projeto.sistemabancario.repository.TransacaoRepository;
 import com.projeto.sistemabancario.repository.UsuarioRepository;
 
 @Service
@@ -36,14 +37,16 @@ public class CarteiraService {
 	private final UsuarioRepository usuarioRepository;
 	private final CorretoraRepository corretoraRepository;
 	private final PosicaoCarteiraRepository posicaoCarteiraRepository;
+	private final TransacaoRepository transacaoRepository;
 
 	public CarteiraService(CarteiraInvestimentoRepository carteiraInvestimentoRepository,
 			UsuarioRepository usuarioRepository, CorretoraRepository corretoraRepository,
-			PosicaoCarteiraRepository posicaoCarteiraRepository) {
+			PosicaoCarteiraRepository posicaoCarteiraRepository, TransacaoRepository transacaoRepository) {
 		this.carteiraInvestimentoRepository = carteiraInvestimentoRepository;
 		this.usuarioRepository = usuarioRepository;
 		this.corretoraRepository = corretoraRepository;
 		this.posicaoCarteiraRepository = posicaoCarteiraRepository;
+		this.transacaoRepository = transacaoRepository;
 	}
 
 	@Transactional
@@ -109,6 +112,16 @@ public class CarteiraService {
 				.orElseThrow(() -> new ResourceNotFoundException("Corretora informada não existe."));
 			c.setCorretora(corretora);
 		}
+		if (request.saldoInicial() != null) {
+			if (request.saldoInicial().compareTo(BigDecimal.ZERO) < 0) {
+				throw new RegraNegocioException("Saldo inicial não pode ser negativo.");
+			}
+			if (transacaoRepository.existsByCarteira_Id(id)) {
+				throw new RegraNegocioException(
+						"O saldo inicial não pode ser alterado após a primeira operação financeira.");
+			}
+			c.setSaldoTotal(request.saldoInicial().setScale(2, RoundingMode.HALF_UP));
+		}
 		return toDetail(carteiraInvestimentoRepository.save(c));
 	}
 
@@ -149,6 +162,7 @@ public class CarteiraService {
 				c.getLucroPrejuizoRealizado(),
 				corretoraId,
 				c.getDataCriacao(),
+				transacaoRepository.existsByCarteira_Id(c.getId()),
 				List.of());
 	}
 
@@ -163,6 +177,7 @@ public class CarteiraService {
 				c.getLucroPrejuizoRealizado(),
 				corretoraId,
 				c.getDataCriacao(),
+				transacaoRepository.existsByCarteira_Id(c.getId()),
 				posicoes);
 	}
 

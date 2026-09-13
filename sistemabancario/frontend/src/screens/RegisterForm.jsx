@@ -96,7 +96,7 @@ export default function RegisterForm({ onSuccess }) {
 					autoComplete="new-password"
 					minLength={6}
 				/>
-				<label className="auth-field" htmlFor="register-birthdate">
+				<label className="auth-field auth-field--stacked-label" htmlFor="register-birthdate">
 					<span>Data de nascimento <small>opcional</small></span>
 					<input
 						id="register-birthdate"
@@ -106,7 +106,7 @@ export default function RegisterForm({ onSuccess }) {
 						onChange={(e) => update("dataNascimento", e.target.value)}
 					/>
 				</label>
-				<label className="auth-field auth-field--with-helper" htmlFor="register-profile">
+				<label className="auth-field auth-field--stacked-label" htmlFor="register-profile">
 					<span>Perfil de investidor</span>
 					<select
 						id="register-profile"

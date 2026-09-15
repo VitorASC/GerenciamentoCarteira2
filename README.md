@@ -4,7 +4,7 @@ Trabalho acadêmico desenvolvido para a disciplina de **Laboratório de Programa
 
 | Informação | Detalhe |
 |---|---|
-| Instituição | FEF |
+| Instituição | UNIFEF |
 | Disciplina | Laboratório de Programação V |
 | Professor | Jefferson Antonio Ribeiro Passerini |
 | Semestre | 6º semestre — Sistemas de Informação |

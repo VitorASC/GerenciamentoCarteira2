@@ -41,7 +41,13 @@ public class CarteiraTradingService {
 
 	@Transactional
 	public OperacaoCarteiraResponse comprar(Long carteiraId, CompraAcaoRequest request, Long usuarioAutenticadoId) {
-		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId);
+		return comprar(carteiraId, request, usuarioAutenticadoId, false);
+	}
+
+	@Transactional
+	public OperacaoCarteiraResponse comprar(Long carteiraId, CompraAcaoRequest request, Long usuarioAutenticadoId,
+			boolean admin) {
+		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId, admin);
 		Acao acao = acaoRepository.findById(request.acaoId())
 			.orElseThrow(() -> new ResourceNotFoundException("Ação não encontrada."));
 
@@ -83,7 +89,13 @@ public class CarteiraTradingService {
 
 	@Transactional
 	public OperacaoCarteiraResponse vender(Long carteiraId, VendaAcaoRequest request, Long usuarioAutenticadoId) {
-		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId);
+		return vender(carteiraId, request, usuarioAutenticadoId, false);
+	}
+
+	@Transactional
+	public OperacaoCarteiraResponse vender(Long carteiraId, VendaAcaoRequest request, Long usuarioAutenticadoId,
+			boolean admin) {
+		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId, admin);
 		Acao acao = acaoRepository.findById(request.acaoId())
 			.orElseThrow(() -> new ResourceNotFoundException("Ação não encontrada."));
 
@@ -121,10 +133,10 @@ public class CarteiraTradingService {
 		return toOperacaoResponse(transacao, carteira);
 	}
 
-	private CarteiraInvestimento obterCarteiraDoUsuario(Long carteiraId, Long usuarioAutenticadoId) {
+	private CarteiraInvestimento obterCarteiraDoUsuario(Long carteiraId, Long usuarioAutenticadoId, boolean admin) {
 		CarteiraInvestimento carteira = carteiraInvestimentoRepository.findById(carteiraId)
 			.orElseThrow(() -> new ResourceNotFoundException("Carteira não encontrada."));
-		if (!carteira.getUsuario().getId().equals(usuarioAutenticadoId)) {
+		if (!admin && !carteira.getUsuario().getId().equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você não tem permissão para operar nesta carteira.");
 		}
 		return carteira;

@@ -36,7 +36,8 @@ class LiquibaseMigrationIntegrationTest {
 			"001-06-create-transacoes",
 			"001-07-create-historico-cotacoes",
 			"001-08-add-unique-constraints",
-			"001-09-add-foreign-keys");
+			"001-09-add-foreign-keys",
+			"002-01-add-perfil-acesso-usuarios");
 
 	@Autowired
 	private DataSource dataSource;
@@ -58,6 +59,9 @@ class LiquibaseMigrationIntegrationTest {
 				"SELECT ID FROM DATABASECHANGELOG",
 				String.class));
 		assertThat(changesets).isEqualTo(CHANGESET_IDS);
+		assertThat(jdbc.queryForObject(
+				"SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'USUARIOS' AND COLUMN_NAME = 'PERFIL_ACESSO'",
+				String.class)).isEqualTo("NO");
 
 		Boolean locked = jdbc.queryForObject(
 				"SELECT LOCKED FROM DATABASECHANGELOGLOCK WHERE ID = 1",

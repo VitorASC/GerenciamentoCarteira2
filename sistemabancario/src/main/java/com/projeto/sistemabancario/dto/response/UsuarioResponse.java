@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.projeto.sistemabancario.domains.enums.PerfilInvestidor;
+import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
 
 public record UsuarioResponse(
 		Long id,
@@ -12,6 +13,7 @@ public record UsuarioResponse(
 		String email,
 		LocalDate dataNascimento,
 		PerfilInvestidor perfilInvestidor,
+		PerfilAcesso perfilAcesso,
 		LocalDateTime dataCriacao,
 		Boolean ativo) {
 }

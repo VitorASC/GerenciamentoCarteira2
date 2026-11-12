@@ -12,6 +12,8 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -48,12 +50,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			Long usuarioId = Long.parseLong(claims.getSubject());
 			String email = claims.get("email", String.class);
 			Boolean ativo = claims.get("ativo", Boolean.class);
+			String perfilAcessoClaim = claims.get("perfilAcesso", String.class);
+			PerfilAcesso perfilAcesso = perfilAcessoClaim != null
+					? PerfilAcesso.valueOf(perfilAcessoClaim)
+					: PerfilAcesso.PADRAO;
 			boolean ativoFlag = ativo == null || ativo;
 			if (!ativoFlag) {
 				filterChain.doFilter(request, response);
 				return;
 			}
-			UsuarioPrincipal principal = UsuarioPrincipal.fromJwt(usuarioId, email != null ? email : "", ativoFlag);
+			UsuarioPrincipal principal = UsuarioPrincipal.fromJwt(
+					usuarioId, email != null ? email : "", ativoFlag, perfilAcesso);
 			var authentication = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
 			authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 			SecurityContextHolder.getContext().setAuthentication(authentication);

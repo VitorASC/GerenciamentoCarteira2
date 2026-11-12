@@ -1,4 +1,6 @@
 package com.projeto.sistemabancario.dto.response;
 
-public record LoginResponse(String tokenType, String accessToken, long expiresInMs) {
+import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
+
+public record LoginResponse(String tokenType, String accessToken, long expiresInMs, PerfilAcesso perfilAcesso) {
 }

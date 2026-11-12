@@ -52,6 +52,7 @@ public class UsuarioService {
 		u.setSenhaHash(passwordEncoder.encode(request.senha()));
 		u.setDataNascimento(request.dataNascimento());
 		u.setPerfilInvestidor(request.perfilInvestidor());
+		u.setPerfilAcesso(request.perfilAcesso());
 		u.setDataCriacao(LocalDateTime.now());
 		u.setEstadoUsuario(EstadoUsuarioAtivo.INSTANCE);
 
@@ -60,31 +61,32 @@ public class UsuarioService {
 
 	@Transactional(readOnly = true)
 	public Page<UsuarioResponse> listar(Pageable pageable) {
-		throw new AccessDeniedException("Listagem de usuários não permitida.");
+		return usuarioRepository.findAll(pageable).map(this::toResponse);
 	}
 
 	@Transactional(readOnly = true)
-	public UsuarioResponse buscarPorId(Long id, Long usuarioAutenticadoId) {
-		if (!id.equals(usuarioAutenticadoId)) {
+	public UsuarioResponse buscarPorId(Long id, Long usuarioAutenticadoId, boolean admin) {
+		if (!admin && !id.equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você só pode consultar o próprio cadastro.");
 		}
 		return buscarPorIdInterno(id);
 	}
 
 	@Transactional(readOnly = true)
-	public UsuarioResponse buscarPorCpf(String cpfBruto, Long usuarioAutenticadoId) {
+	public UsuarioResponse buscarPorCpf(String cpfBruto, Long usuarioAutenticadoId, boolean admin) {
 		String cpf = Documentos.apenasDigitos(cpfBruto);
 		Usuario alvo = usuarioRepository.findByCpf(cpf)
 			.orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF informado."));
-		if (!alvo.getId().equals(usuarioAutenticadoId)) {
+		if (!admin && !alvo.getId().equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você só pode consultar o próprio CPF.");
 		}
 		return toResponse(alvo);
 	}
 
 	@Transactional
-	public UsuarioResponse atualizar(Long id, UsuarioAtualizacaoRequest request, Long usuarioAutenticadoId) {
-		if (!id.equals(usuarioAutenticadoId)) {
+	public UsuarioResponse atualizar(Long id, UsuarioAtualizacaoRequest request, Long usuarioAutenticadoId,
+			boolean admin) {
+		if (!admin && !id.equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você só pode alterar o próprio cadastro.");
 		}
 		return atualizar(id, request);
@@ -128,6 +130,7 @@ public class UsuarioService {
 				u.getEmail(),
 				u.getDataNascimento(),
 				u.getPerfilInvestidor(),
+				u.getPerfilAcesso(),
 				u.getDataCriacao(),
 				u.getAtivo());
 	}

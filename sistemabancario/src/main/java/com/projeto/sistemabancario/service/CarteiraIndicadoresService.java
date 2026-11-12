@@ -45,8 +45,14 @@ public class CarteiraIndicadoresService {
 	@Transactional(readOnly = true)
 	public IndicadorTickerCarteiraResponse indicadorPorTicker(Long carteiraId, String tickerBruto,
 			Long usuarioAutenticadoId) {
+		return indicadorPorTicker(carteiraId, tickerBruto, usuarioAutenticadoId, false);
+	}
+
+	@Transactional(readOnly = true)
+	public IndicadorTickerCarteiraResponse indicadorPorTicker(Long carteiraId, String tickerBruto,
+			Long usuarioAutenticadoId, boolean admin) {
 		String ticker = tickerBruto.trim().toUpperCase();
-		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId);
+		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId, admin);
 
 		List<PosicaoCarteira> linhas = posicaoCarteiraRepository.findAllByCarteiraIdWithAcao(carteiraId);
 		PosicaoCarteira posicao = linhas.stream()
@@ -59,7 +65,13 @@ public class CarteiraIndicadoresService {
 
 	@Transactional(readOnly = true)
 	public IndicadorMediaCarteiraResponse indicadorMediaCarteira(Long carteiraId, Long usuarioAutenticadoId) {
-		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId);
+		return indicadorMediaCarteira(carteiraId, usuarioAutenticadoId, false);
+	}
+
+	@Transactional(readOnly = true)
+	public IndicadorMediaCarteiraResponse indicadorMediaCarteira(Long carteiraId, Long usuarioAutenticadoId,
+			boolean admin) {
+		CarteiraInvestimento carteira = obterCarteiraDoUsuario(carteiraId, usuarioAutenticadoId, admin);
 
 		List<PosicaoCarteira> linhas = posicaoCarteiraRepository.findAllByCarteiraIdWithAcao(carteira.getId());
 		List<PosicaoIndicadorMercadoResponse> detalhes = new ArrayList<>();
@@ -137,10 +149,10 @@ public class CarteiraIndicadoresService {
 				valorMercado);
 	}
 
-	private CarteiraInvestimento obterCarteiraDoUsuario(Long carteiraId, Long usuarioAutenticadoId) {
+	private CarteiraInvestimento obterCarteiraDoUsuario(Long carteiraId, Long usuarioAutenticadoId, boolean admin) {
 		CarteiraInvestimento carteira = carteiraInvestimentoRepository.findById(carteiraId)
 			.orElseThrow(() -> new ResourceNotFoundException("Carteira não encontrada."));
-		if (!carteira.getUsuario().getId().equals(usuarioAutenticadoId)) {
+		if (!admin && !carteira.getUsuario().getId().equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você não tem permissão para acessar esta carteira.");
 		}
 		return carteira;

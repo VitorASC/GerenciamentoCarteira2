@@ -51,59 +51,61 @@ public class CarteiraController {
 	@ResponseStatus(HttpStatus.CREATED)
 	public CarteiraResponse cadastrar(@AuthenticationPrincipal UsuarioPrincipal principal,
 			@Valid @RequestBody CarteiraCadastroRequest request) {
-		return carteiraService.cadastrar(request, principal.getUsuarioId());
+		return carteiraService.cadastrar(request, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@GetMapping
 	public Page<CarteiraResponse> listar(@AuthenticationPrincipal UsuarioPrincipal principal,
 			@PageableDefault(size = 20) Pageable pageable) {
-		return carteiraService.listar(pageable, principal.getUsuarioId());
+		return carteiraService.listar(pageable, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@GetMapping("/{id}")
 	public CarteiraResponse buscarPorId(@AuthenticationPrincipal UsuarioPrincipal principal, @PathVariable Long id) {
-		return carteiraService.buscarPorId(id, principal.getUsuarioId());
+		return carteiraService.buscarPorId(id, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@GetMapping("/usuario/{usuarioId}")
 	public List<CarteiraResponse> listarPorUsuario(@AuthenticationPrincipal UsuarioPrincipal principal,
 			@PathVariable Long usuarioId) {
-		return carteiraService.listarPorUsuario(usuarioId, principal.getUsuarioId());
+		return carteiraService.listarPorUsuario(usuarioId, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@PutMapping("/{id}")
 	public CarteiraResponse atualizar(@AuthenticationPrincipal UsuarioPrincipal principal, @PathVariable Long id,
 			@Valid @RequestBody CarteiraAtualizacaoRequest request) {
-		return carteiraService.atualizar(id, request, principal.getUsuarioId());
+		return carteiraService.atualizar(id, request, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@DeleteMapping("/{id}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void excluir(@AuthenticationPrincipal UsuarioPrincipal principal, @PathVariable Long id) {
-		carteiraService.excluir(id, principal.getUsuarioId());
+		carteiraService.excluir(id, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@PostMapping("/{carteiraId}/compras")
 	public OperacaoCarteiraResponse comprar(@AuthenticationPrincipal UsuarioPrincipal principal,
 			@PathVariable Long carteiraId, @Valid @RequestBody CompraAcaoRequest request) {
-		return carteiraTradingService.comprar(carteiraId, request, principal.getUsuarioId());
+		return carteiraTradingService.comprar(carteiraId, request, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@PostMapping("/{carteiraId}/vendas")
 	public OperacaoCarteiraResponse vender(@AuthenticationPrincipal UsuarioPrincipal principal,
 			@PathVariable Long carteiraId, @Valid @RequestBody VendaAcaoRequest request) {
-		return carteiraTradingService.vender(carteiraId, request, principal.getUsuarioId());
+		return carteiraTradingService.vender(carteiraId, request, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@GetMapping("/{carteiraId}/indicadores/ticker/{ticker}")
 	public IndicadorTickerCarteiraResponse indicadorPorTicker(@AuthenticationPrincipal UsuarioPrincipal principal,
 			@PathVariable Long carteiraId, @PathVariable String ticker) {
-		return carteiraIndicadoresService.indicadorPorTicker(carteiraId, ticker, principal.getUsuarioId());
+		return carteiraIndicadoresService.indicadorPorTicker(
+				carteiraId, ticker, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@GetMapping("/{carteiraId}/indicadores/media-carteira")
 	public IndicadorMediaCarteiraResponse indicadorMediaCarteira(@AuthenticationPrincipal UsuarioPrincipal principal,
 			@PathVariable Long carteiraId) {
-		return carteiraIndicadoresService.indicadorMediaCarteira(carteiraId, principal.getUsuarioId());
+		return carteiraIndicadoresService.indicadorMediaCarteira(
+				carteiraId, principal.getUsuarioId(), principal.isAdmin());
 	}
 }

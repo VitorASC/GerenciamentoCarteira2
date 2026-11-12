@@ -35,7 +35,8 @@ public class AuthController {
 		var auth = authenticationManager.authenticate(
 				new UsernamePasswordAuthenticationToken(request.email().trim(), request.senha()));
 		var principal = (UsuarioPrincipal) auth.getPrincipal();
-		String token = jwtService.gerarToken(principal.getUsuarioId(), principal.getUsername(), principal.isEnabled());
-		return new LoginResponse("Bearer", token, jwtProperties.getExpirationMs());
+		String token = jwtService.gerarToken(principal.getUsuarioId(), principal.getUsername(), principal.isEnabled(),
+				principal.getPerfilAcesso());
+		return new LoginResponse("Bearer", token, jwtProperties.getExpirationMs(), principal.getPerfilAcesso());
 	}
 }

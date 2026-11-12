@@ -30,9 +30,7 @@ public class JwtAccessDeniedHandler implements AccessDeniedHandler {
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		String mensagem = accessDeniedException.getMessage() != null && !accessDeniedException.getMessage().isBlank()
-				? accessDeniedException.getMessage()
-				: "Acesso negado.";
+		String mensagem = "Você não tem permissão para realizar esta operação.";
 		ErroResponse body = new ErroResponse(
 				HttpServletResponse.SC_FORBIDDEN,
 				"Acesso negado",

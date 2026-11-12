@@ -51,7 +51,12 @@ public class CarteiraService {
 
 	@Transactional
 	public CarteiraResponse cadastrar(CarteiraCadastroRequest request, Long usuarioAutenticadoId) {
-		if (!request.usuarioId().equals(usuarioAutenticadoId)) {
+		return cadastrar(request, usuarioAutenticadoId, false);
+	}
+
+	@Transactional
+	public CarteiraResponse cadastrar(CarteiraCadastroRequest request, Long usuarioAutenticadoId, boolean admin) {
+		if (!admin && !request.usuarioId().equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você só pode criar carteiras para o próprio usuário.");
 		}
 		Usuario usuario = usuarioRepository.findById(request.usuarioId())
@@ -80,20 +85,38 @@ public class CarteiraService {
 
 	@Transactional(readOnly = true)
 	public Page<CarteiraResponse> listar(Pageable pageable, Long usuarioAutenticadoId) {
+		return listar(pageable, usuarioAutenticadoId, false);
+	}
+
+	@Transactional(readOnly = true)
+	public Page<CarteiraResponse> listar(Pageable pageable, Long usuarioAutenticadoId, boolean admin) {
+		if (admin) {
+			return carteiraInvestimentoRepository.findAll(pageable).map(this::toSummary);
+		}
 		return carteiraInvestimentoRepository.findByUsuario_Id(usuarioAutenticadoId, pageable).map(this::toSummary);
 	}
 
 	@Transactional(readOnly = true)
 	public CarteiraResponse buscarPorId(Long id, Long usuarioAutenticadoId) {
+		return buscarPorId(id, usuarioAutenticadoId, false);
+	}
+
+	@Transactional(readOnly = true)
+	public CarteiraResponse buscarPorId(Long id, Long usuarioAutenticadoId, boolean admin) {
 		CarteiraInvestimento c = carteiraInvestimentoRepository.findById(id)
 			.orElseThrow(() -> new ResourceNotFoundException("Carteira não encontrada."));
-		garantirDono(c, usuarioAutenticadoId);
+		garantirDono(c, usuarioAutenticadoId, admin);
 		return toDetail(c);
 	}
 
 	@Transactional(readOnly = true)
 	public List<CarteiraResponse> listarPorUsuario(Long usuarioId, Long usuarioAutenticadoId) {
-		if (!usuarioId.equals(usuarioAutenticadoId)) {
+		return listarPorUsuario(usuarioId, usuarioAutenticadoId, false);
+	}
+
+	@Transactional(readOnly = true)
+	public List<CarteiraResponse> listarPorUsuario(Long usuarioId, Long usuarioAutenticadoId, boolean admin) {
+		if (!admin && !usuarioId.equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você só pode listar as próprias carteiras.");
 		}
 		return carteiraInvestimentoRepository.findByUsuario_Id(usuarioId).stream().map(this::toSummary).toList();
@@ -101,9 +124,15 @@ public class CarteiraService {
 
 	@Transactional
 	public CarteiraResponse atualizar(Long id, CarteiraAtualizacaoRequest request, Long usuarioAutenticadoId) {
+		return atualizar(id, request, usuarioAutenticadoId, false);
+	}
+
+	@Transactional
+	public CarteiraResponse atualizar(Long id, CarteiraAtualizacaoRequest request, Long usuarioAutenticadoId,
+			boolean admin) {
 		CarteiraInvestimento c = carteiraInvestimentoRepository.findById(id)
 			.orElseThrow(() -> new ResourceNotFoundException("Carteira não encontrada."));
-		garantirDono(c, usuarioAutenticadoId);
+		garantirDono(c, usuarioAutenticadoId, admin);
 		if (request.nomeDaCarteira() != null && !request.nomeDaCarteira().isBlank()) {
 			c.setNomeDaCarteira(request.nomeDaCarteira().trim());
 		}
@@ -127,9 +156,14 @@ public class CarteiraService {
 
 	@Transactional
 	public void excluir(Long id, Long usuarioAutenticadoId) {
+		excluir(id, usuarioAutenticadoId, false);
+	}
+
+	@Transactional
+	public void excluir(Long id, Long usuarioAutenticadoId, boolean admin) {
 		CarteiraInvestimento c = carteiraInvestimentoRepository.findById(id)
 			.orElseThrow(() -> new ResourceNotFoundException("Carteira não encontrada."));
-		garantirDono(c, usuarioAutenticadoId);
+		garantirDono(c, usuarioAutenticadoId, admin);
 
 		BigDecimal saldo = c.getSaldoTotal() != null ? c.getSaldoTotal() : BigDecimal.ZERO;
 		if (saldo.compareTo(BigDecimal.ZERO) != 0) {
@@ -146,8 +180,8 @@ public class CarteiraService {
 		carteiraInvestimentoRepository.delete(c);
 	}
 
-	private static void garantirDono(CarteiraInvestimento c, Long usuarioAutenticadoId) {
-		if (!c.getUsuario().getId().equals(usuarioAutenticadoId)) {
+	private static void garantirDono(CarteiraInvestimento c, Long usuarioAutenticadoId, boolean admin) {
+		if (!admin && !c.getUsuario().getId().equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você não tem permissão para acessar esta carteira.");
 		}
 	}

@@ -64,6 +64,7 @@ export function AuthProvider({ children }) {
 			token,
 			payload,
 			usuarioId: payload && payload.sub ? String(payload.sub) : "",
+			perfilAcesso: payload?.perfilAcesso || "",
 			isAuthenticated: Boolean(token),
 			sessionNotice,
 			login,

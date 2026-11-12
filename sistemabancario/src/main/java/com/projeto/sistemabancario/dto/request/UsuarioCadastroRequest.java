@@ -3,6 +3,7 @@ package com.projeto.sistemabancario.dto.request;
 import java.time.LocalDate;
 
 import com.projeto.sistemabancario.domains.enums.PerfilInvestidor;
+import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -15,5 +16,6 @@ public record UsuarioCadastroRequest(
 		@NotBlank @Email String email,
 		@NotBlank @Size(min = 6, max = 120) String senha,
 		LocalDate dataNascimento,
-		@NotNull PerfilInvestidor perfilInvestidor) {
+		@NotNull PerfilInvestidor perfilInvestidor,
+		@NotNull PerfilAcesso perfilAcesso) {
 }

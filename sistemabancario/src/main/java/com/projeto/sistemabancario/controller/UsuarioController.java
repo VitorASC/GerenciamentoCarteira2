@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,23 +40,24 @@ public class UsuarioController {
 	}
 
 	@GetMapping
+	@PreAuthorize("hasRole('ADMIN')")
 	public Page<UsuarioResponse> listar(@PageableDefault(size = 20) Pageable pageable) {
 		return usuarioService.listar(pageable);
 	}
 
 	@GetMapping("/{id}")
 	public UsuarioResponse buscarPorId(@AuthenticationPrincipal UsuarioPrincipal principal, @PathVariable Long id) {
-		return usuarioService.buscarPorId(id, principal.getUsuarioId());
+		return usuarioService.buscarPorId(id, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@GetMapping("/cpf/{cpf}")
 	public UsuarioResponse buscarPorCpf(@AuthenticationPrincipal UsuarioPrincipal principal, @PathVariable String cpf) {
-		return usuarioService.buscarPorCpf(cpf, principal.getUsuarioId());
+		return usuarioService.buscarPorCpf(cpf, principal.getUsuarioId(), principal.isAdmin());
 	}
 
 	@PutMapping("/{id}")
 	public UsuarioResponse atualizar(@AuthenticationPrincipal UsuarioPrincipal principal, @PathVariable Long id,
 			@RequestBody UsuarioAtualizacaoRequest request) {
-		return usuarioService.atualizar(id, request, principal.getUsuarioId());
+		return usuarioService.atualizar(id, request, principal.getUsuarioId(), principal.isAdmin());
 	}
 }

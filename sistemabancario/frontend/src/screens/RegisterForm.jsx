@@ -11,6 +11,7 @@ const INITIAL = {
 	senha: "",
 	dataNascimento: "",
 	perfilInvestidor: "MODERADO",
+	perfilAcesso: "PADRAO",
 };
 
 export default function RegisterForm({ onSuccess }) {
@@ -33,6 +34,7 @@ export default function RegisterForm({ onSuccess }) {
 			email: form.email.trim(),
 			senha: form.senha,
 			perfilInvestidor: form.perfilInvestidor || "MODERADO",
+			perfilAcesso: form.perfilAcesso || "PADRAO",
 		};
 		if (form.dataNascimento) {
 			body.dataNascimento = form.dataNascimento;
@@ -118,6 +120,19 @@ export default function RegisterForm({ onSuccess }) {
 						<option value="CONSERVADOR">CONSERVADOR</option>
 						<option value="MODERADO">MODERADO</option>
 						<option value="ARROJADO">ARROJADO</option>
+					</select>
+				</label>
+				<label className="auth-field auth-field--stacked-label" htmlFor="register-access-profile">
+					<span>Tipo de usuário</span>
+					<select
+						id="register-access-profile"
+						name="perfilAcesso"
+						required
+						value={form.perfilAcesso}
+						onChange={(e) => update("perfilAcesso", e.target.value)}
+					>
+						<option value="PADRAO">Usuário padrão</option>
+						<option value="ADMIN">Administrador</option>
 					</select>
 				</label>
 				<button type="submit" className="btn-primary-wide auth-submit" disabled={submitting}>

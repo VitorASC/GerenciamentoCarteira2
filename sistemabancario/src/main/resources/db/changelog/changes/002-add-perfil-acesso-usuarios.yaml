@@ -1,0 +1,24 @@
+databaseChangeLog:
+  - property:
+      name: perfil-acesso-type
+      value: "ENUM('ADMIN','PADRAO')"
+      dbms: mysql
+  - property:
+      name: perfil-acesso-type
+      value: VARCHAR(16)
+      dbms: postgresql,h2
+
+  - changeSet:
+      id: 002-01-add-perfil-acesso-usuarios
+      author: equipe-fef
+      changes:
+        - addColumn:
+            tableName: usuarios
+            columns:
+              - column:
+                  name: perfil_acesso
+                  type: ${perfil-acesso-type}
+                  defaultValue: PADRAO
+                  constraints:
+                    nullable: false
+                    checkConstraint: "perfil_acesso IN ('ADMIN','PADRAO')"

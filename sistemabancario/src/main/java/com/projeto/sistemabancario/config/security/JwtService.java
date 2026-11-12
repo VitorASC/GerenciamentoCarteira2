@@ -7,6 +7,8 @@ import javax.crypto.SecretKey;
 
 import org.springframework.stereotype.Service;
 
+import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -32,7 +34,7 @@ public class JwtService {
 		this.signingKey = Keys.hmacShaKeyFor(keyBytes);
 	}
 
-	public String gerarToken(Long usuarioId, String email, boolean ativo) {
+	public String gerarToken(Long usuarioId, String email, boolean ativo, PerfilAcesso perfilAcesso) {
 		long now = System.currentTimeMillis();
 		Date issuedAt = new Date(now);
 		Date expiresAt = new Date(now + properties.getExpirationMs());
@@ -40,10 +42,15 @@ public class JwtService {
 			.subject(String.valueOf(usuarioId))
 			.claim("email", email)
 			.claim("ativo", ativo)
+			.claim("perfilAcesso", perfilAcesso.name())
 			.issuedAt(issuedAt)
 			.expiration(expiresAt)
 			.signWith(signingKey)
 			.compact();
+	}
+
+	public String gerarToken(Long usuarioId, String email, boolean ativo) {
+		return gerarToken(usuarioId, email, ativo, PerfilAcesso.PADRAO);
 	}
 
 	public Claims parseClaims(String token) {

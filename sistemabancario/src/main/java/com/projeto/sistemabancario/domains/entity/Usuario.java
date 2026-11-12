@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.projeto.sistemabancario.domains.enums.PerfilInvestidor;
+import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
 import com.projeto.sistemabancario.domains.usuario.state.EstadoUsuario;
 import com.projeto.sistemabancario.domains.usuario.state.EstadoUsuarioAtivo;
 import com.projeto.sistemabancario.domains.usuario.state.EstadoUsuarioInativo;
@@ -51,6 +52,10 @@ public class Usuario {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 24)
 	private PerfilInvestidor perfilInvestidor;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 16)
+	private PerfilAcesso perfilAcesso = PerfilAcesso.PADRAO;
 
 	@Column(nullable = false)
 	private LocalDateTime dataCriacao;
@@ -114,6 +119,14 @@ public class Usuario {
 
 	public void setPerfilInvestidor(PerfilInvestidor perfilInvestidor) {
 		this.perfilInvestidor = perfilInvestidor;
+	}
+
+	public PerfilAcesso getPerfilAcesso() {
+		return perfilAcesso;
+	}
+
+	public void setPerfilAcesso(PerfilAcesso perfilAcesso) {
+		this.perfilAcesso = perfilAcesso;
 	}
 
 	public LocalDateTime getDataCriacao() {

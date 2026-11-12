@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
@@ -47,8 +48,9 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(AccessDeniedException.class)
 	public ResponseEntity<ErroResponse> acessoNegado(AccessDeniedException ex, HttpServletRequest req) {
 		String mensagem = ex.getMessage() != null && !ex.getMessage().isBlank()
+				&& !"Access Denied".equalsIgnoreCase(ex.getMessage())
 				? ex.getMessage()
-				: "Você não tem permissão para este recurso.";
+				: "Você não tem permissão para realizar esta operação.";
 		return montar(HttpStatus.FORBIDDEN, "Acesso negado", mensagem, req);
 	}
 
@@ -94,6 +96,12 @@ public class GlobalExceptionHandler {
 			.findFirst()
 			.orElse("Dados inválidos.");
 		return montar(HttpStatus.BAD_REQUEST, "Validação", mensagem, req);
+	}
+
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<ErroResponse> jsonInvalido(HttpMessageNotReadableException ex, HttpServletRequest req) {
+		return montar(HttpStatus.BAD_REQUEST, "Validação",
+				"Dados inválidos. Verifique os valores informados.", req);
 	}
 
 	@ExceptionHandler(Exception.class)

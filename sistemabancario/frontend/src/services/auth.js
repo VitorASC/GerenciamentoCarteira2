@@ -1,5 +1,9 @@
 export const TOKEN_KEY = "sistemabancario.jwt";
 export const SESSION_EXPIRED_EVENT = "gestaoativa:session-expired";
+export const ACCESS_PROFILE = Object.freeze({
+	ADMIN: "ADMIN",
+	PADRAO: "PADRAO",
+});
 
 export function getToken() {
 	return sessionStorage.getItem(TOKEN_KEY) || "";

@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { EntityDialog, EntityDialogActions, EntityEmpty, EntityFormMessage, EntityLoading, EntityNotice, EntityPageHeader } from "../components/EntityUi";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
+import { ACCESS_PROFILE } from "../services/auth";
 import { formatCpf, formatDate, formatNumber, stripDigits } from "../services/format";
 
 const EMPTY_STATUS = { text: "", error: false };
 
 export default function ContaPanel({ onUserUpdated }) {
-	const { usuarioId } = useAuth();
+	const { perfilAcesso, usuarioId } = useAuth();
 	const currentUserId = usuarioId;
+	const canManageUsers = perfilAcesso === ACCESS_PROFILE.ADMIN;
 	const [profile, setProfile] = useState(null);
 	const [users, setUsers] = useState([]);
 	const [loadingProfile, setLoadingProfile] = useState(true);
@@ -29,11 +31,16 @@ export default function ContaPanel({ onUserUpdated }) {
 	}, [currentUserId, onUserUpdated]);
 
 	const loadUsers = useCallback(async () => {
+		if (!canManageUsers) {
+			setUsers([]);
+			setLoadingUsers(false);
+			return;
+		}
 		setLoadingUsers(true);
 		try { const page = await api("GET", "/usuarios?size=100"); setUsers(page?.content || []); }
 		catch (error) { setUsers([]); setNotice({ type: "error", text: error.message || "Não foi possível carregar os usuários." }); }
 		finally { setLoadingUsers(false); }
-	}, []);
+	}, [canManageUsers]);
 
 	useEffect(() => { loadProfile(); loadUsers(); }, [loadProfile, loadUsers]);
 
@@ -66,10 +73,10 @@ export default function ContaPanel({ onUserUpdated }) {
 		<EntityPageHeader eyebrow="Perfil" title="Conta" description="Gerencie seus dados e preferências de perfil." />
 		<EntityNotice notice={notice} onClose={() => setNotice(null)} />
 		{loadingProfile ? <EntityLoading label="Carregando seu perfil..." /> : profile ? <ProfileCard profile={profile} onEdit={() => setEditOpen(true)} /> : null}
-		<section className="dashboard-card entity-list-card account-users"><header className="entity-card-head"><div><h3>Usuários cadastrados</h3><p>Consulta secundária para identificação e demonstração dos registros.</p></div><span>{formatNumber(users.length)} {users.length === 1 ? "usuário" : "usuários"}</span></header>
+		{canManageUsers ? <section className="dashboard-card entity-list-card account-users"><header className="entity-card-head"><div><h3>Usuários cadastrados</h3><p>Consulta secundária para identificação e demonstração dos registros.</p></div><span>{formatNumber(users.length)} {users.length === 1 ? "usuário" : "usuários"}</span></header>
 			<form className="entity-filters" onSubmit={search}><label><span>ID</span><input type="number" min="1" placeholder="Ex.: 1" value={filters.id} onChange={(e) => setFilters({ ...filters, id: e.target.value })} /></label><label><span>CPF ou nome</span><input type="search" placeholder="Buscar por CPF ou nome" value={filters.text} onChange={(e) => setFilters({ ...filters, text: e.target.value })} /></label><button type="submit" disabled={searching}>{searching ? "Buscando..." : "Buscar"}</button><button type="button" className="wallet-filter-clear" onClick={clearFilters}>Limpar</button></form>
 			{loadingUsers ? <EntityLoading label="Carregando usuários..." /> : visibleUsers.length === 0 ? <EntityEmpty title="Nenhum usuário encontrado." actionLabel={filters.id || filters.text || appliedText || searchResult !== null ? "Limpar filtros" : undefined} onAction={clearFilters} /> : <UsersTable rows={visibleUsers} currentId={currentUserId} />}
-		</section>
+		</section> : null}
 		{editOpen && profile ? <EditProfileDialog profile={profile} onClose={() => setEditOpen(false)} onSaved={(updated) => { setProfile(updated); onUserUpdated?.(updated); setUsers((rows) => rows.map((item) => String(item.id) === String(updated.id) ? updated : item)); setEditOpen(false); setNotice({ type: "success", text: "Dados atualizados com sucesso." }); }} /> : null}
 	</div>;
 }

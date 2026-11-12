@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import AccessDenied from "../components/AccessDenied";
 import { useAuth } from "../hooks/useAuth";
 import AcoesPanel from "../panels/AcoesPanel";
 import CarteirasPanel from "../panels/CarteirasPanel";
@@ -6,6 +7,7 @@ import ContaPanel from "../panels/ContaPanel";
 import CorretorasPanel from "../panels/CorretorasPanel";
 import DashboardPanel from "../panels/DashboardPanel";
 import { api } from "../services/api";
+import { ACCESS_PROFILE } from "../services/auth";
 import AppHeader from "./AppHeader";
 import Sidebar from "./Sidebar";
 
@@ -30,7 +32,7 @@ const PANEL_META = {
 };
 
 export default function AppShell({ onToggleTheme }) {
-	const { logout, payload, usuarioId } = useAuth();
+	const { logout, payload, perfilAcesso, usuarioId } = useAuth();
 	const [activePanel, setActivePanel] = useState("dashboard");
 	const [sidebarOpen, setSidebarOpen] = useState(false);
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -40,6 +42,7 @@ export default function AppShell({ onToggleTheme }) {
 	const [user, setUser] = useState(() => ({ email: payload?.email || "" }));
 
 	const meta = PANEL_META[activePanel] || PANEL_META.dashboard;
+	const isAdmin = perfilAcesso === ACCESS_PROFILE.ADMIN;
 
 	useEffect(() => {
 		if (!usuarioId) return;
@@ -108,10 +111,10 @@ export default function AppShell({ onToggleTheme }) {
 						<DashboardPanel onNavigate={handleSelect} />
 					</PanelContainer>
 					<PanelContainer panel="corretoras" active={activePanel}>
-						<CorretorasPanel />
+						{isAdmin ? <CorretorasPanel /> : <AccessDenied user={user} />}
 					</PanelContainer>
 					<PanelContainer panel="acoes" active={activePanel}>
-						<AcoesPanel />
+						{isAdmin ? <AcoesPanel /> : <AccessDenied user={user} />}
 					</PanelContainer>
 					<PanelContainer panel="carteiras" active={activePanel}>
 						<CarteirasPanel />

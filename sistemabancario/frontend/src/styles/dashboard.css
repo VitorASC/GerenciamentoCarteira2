@@ -4306,3 +4306,117 @@ tr:last-child td {
 		display: none;
 	}
 }
+
+/* Alternância pontual das visualizações de análise da carteira. */
+.dashboard-allocation-card .dashboard-card-head {
+	flex-wrap: wrap;
+}
+
+.chart-view-switcher {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 0.18rem;
+	padding: 0.2rem;
+	border: 1px solid var(--border);
+	border-radius: 0.58rem;
+	background: var(--bg-input);
+}
+
+.chart-view-switcher__button {
+	min-height: 1.9rem;
+	padding: 0 0.62rem;
+	border: 0;
+	border-radius: 0.42rem;
+	background: transparent;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: 0.67rem;
+	font-weight: 680;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.chart-view-switcher__button:hover {
+	color: var(--text);
+}
+
+.chart-view-switcher__button--active {
+	background: var(--bg-card);
+	box-shadow: 0 1px 4px rgba(4, 25, 18, 0.08);
+	color: var(--success);
+}
+
+.chart-view-switcher__button:focus-visible {
+	outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+	outline-offset: 1px;
+}
+
+.cost-market-chart-content {
+	display: flex;
+	min-height: 278px;
+	flex-direction: column;
+	gap: 0.35rem;
+	padding-top: 0.65rem;
+}
+
+.cost-market-chart-legend {
+	display: flex;
+	min-height: 1.75rem;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 1.1rem;
+	padding: 0 0.2rem;
+	color: var(--text-muted);
+	font-size: 0.67rem;
+	font-weight: 650;
+}
+
+.cost-market-chart-legend span {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.42rem;
+}
+
+.cost-market-chart-dot {
+	display: inline-block;
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 0.18rem;
+}
+
+.cost-market-chart-dot--cost {
+	background: #6fa997;
+}
+
+.cost-market-chart-dot--market {
+	background: #2ec98f;
+}
+
+.cost-market-chart-scroll {
+	max-height: 242px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, var(--text-muted) 38%, transparent) transparent;
+}
+
+.cost-market-chart-wrap {
+	position: relative;
+	min-height: 220px;
+}
+
+@media (max-width: 680px) {
+	.chart-view-switcher {
+		width: 100%;
+	}
+
+	.chart-view-switcher__button {
+		flex: 1;
+	}
+
+	.cost-market-chart-legend {
+		justify-content: flex-start;
+	}
+}

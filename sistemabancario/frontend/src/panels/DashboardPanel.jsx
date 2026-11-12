@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	ArcElement,
+	BarElement,
+	CategoryScale,
 	Chart as ChartJS,
 	Legend,
+	LinearScale,
 	Tooltip,
 } from "chart.js";
-import { Doughnut } from "react-chartjs-2";
+import { Bar, Doughnut } from "react-chartjs-2";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
 import { formatMoney, formatNumber, formatPercent, valueTone } from "../services/format";
@@ -36,7 +39,7 @@ const centerTextPlugin = {
 	},
 };
 
-ChartJS.register(ArcElement, Tooltip, Legend, centerTextPlugin);
+ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend, centerTextPlugin);
 
 export default function DashboardPanel({ onNavigate }) {
 	const { usuarioId } = useAuth();
@@ -181,7 +184,7 @@ export default function DashboardPanel({ onNavigate }) {
 					) : (
 						<>
 							<section className="dashboard-insights">
-								<DistributionCard distribution={distribution} patrimonio={indicadores?.valorMercadoTotalCarteira} />
+								<DistributionCard distribution={distribution} positions={positions} patrimonio={indicadores?.valorMercadoTotalCarteira} />
 								<PortfolioComposition indicadores={indicadores} />
 							</section>
 							<PositionsTable positions={positions} indicadores={indicadores} />
@@ -266,7 +269,8 @@ function FinancialMetric({ label, value, note, tone }) {
 	);
 }
 
-function DistributionCard({ distribution, patrimonio }) {
+function DistributionCard({ distribution, positions, patrimonio }) {
+	const [view, setView] = useState("distribution");
 	const data = {
 		labels: distribution.map((item) => item.ticker),
 		datasets: [{
@@ -298,21 +302,116 @@ function DistributionCard({ distribution, patrimonio }) {
 	return (
 		<article className="dashboard-card dashboard-allocation-card">
 			<header className="dashboard-card-head">
-				<div><span className="dashboard-section-index">01</span><h3>Distribuição da carteira</h3><p>Participação de cada ativo no valor de mercado</p></div>
+				<div>
+					<span className="dashboard-section-index">01</span>
+					<h3>{view === "distribution" ? "Distribuição da carteira" : "Custo × valor atual"}</h3>
+					<p>{view === "distribution" ? "Participação de cada ativo no valor de mercado" : "Comparação por posição, usando os valores atuais da carteira"}</p>
+				</div>
+				<nav className="chart-view-switcher" aria-label="Visualização do gráfico">
+					<button type="button" className={view === "distribution" ? "chart-view-switcher__button chart-view-switcher__button--active" : "chart-view-switcher__button"} aria-pressed={view === "distribution"} onClick={() => setView("distribution")}>Distribuição</button>
+					<button type="button" className={view === "cost-market" ? "chart-view-switcher__button chart-view-switcher__button--active" : "chart-view-switcher__button"} aria-pressed={view === "cost-market"} onClick={() => setView("cost-market")}>Custo × Valor</button>
+				</nav>
 			</header>
-			<div className="distribution-content">
-				<div className="donut-wrap"><Doughnut data={data} options={options} /></div>
-				<ul className="distribution-legend" aria-label="Participação dos ativos">
-					{distribution.map((item) => (
-						<li key={item.acaoId ?? item.ticker}>
-							<span className="legend-dot" style={{ backgroundColor: item.color }} />
-							<span className="legend-asset"><strong>{item.ticker}</strong><small>{formatMoney(item.marketValue)}</small></span>
-							<span className="legend-share">{formatPercent(item.percentage).replace("+", "")}</span>
-						</li>
-					))}
-				</ul>
-			</div>
+			{view === "distribution" ? (
+				<div className="distribution-content">
+					<div className="donut-wrap"><Doughnut data={data} options={options} /></div>
+					<ul className="distribution-legend" aria-label="Participação dos ativos">
+						{distribution.map((item) => (
+							<li key={item.acaoId ?? item.ticker}>
+								<span className="legend-dot" style={{ backgroundColor: item.color }} />
+								<span className="legend-asset"><strong>{item.ticker}</strong><small>{formatMoney(item.marketValue)}</small></span>
+								<span className="legend-share">{formatPercent(item.percentage).replace("+", "")}</span>
+							</li>
+						))}
+					</ul>
+				</div>
+			) : <CostVsMarketChart positions={positions} />}
 		</article>
+	);
+}
+
+function CostVsMarketChart({ positions }) {
+	const styles = getComputedStyle(document.documentElement);
+	const textColor = styles.getPropertyValue("--text").trim() || "#10251f";
+	const mutedColor = styles.getPropertyValue("--text-muted").trim() || "#65766f";
+	const gridColor = styles.getPropertyValue("--border").trim() || "#d3dfda";
+	const chartHeight = Math.max(220, positions.length * 46);
+	const data = {
+		labels: positions.map((position) => position.ticker),
+		datasets: [
+			{
+				label: "Custo",
+				data: positions.map((position) => Number(position.valorCustoTotal)),
+				backgroundColor: "#6fa997",
+				borderColor: "#6fa997",
+				borderRadius: 4,
+				borderWidth: 1,
+			},
+			{
+				label: "Valor atual",
+				data: positions.map((position) => Number(position.valorMercadoAtual)),
+				backgroundColor: "#2ec98f",
+				borderColor: "#2ec98f",
+				borderRadius: 4,
+				borderWidth: 1,
+			},
+		],
+	};
+	const options = {
+		indexAxis: "y",
+		responsive: true,
+		maintainAspectRatio: false,
+		animation: { duration: 220 },
+		barPercentage: 0.76,
+		categoryPercentage: 0.72,
+		plugins: {
+			legend: { display: false },
+			tooltip: {
+				callbacks: {
+					title(items) {
+						return items[0]?.label || "";
+					},
+					label(context) {
+						return ` ${context.dataset.label}: ${formatMoney(context.raw)}`;
+					},
+				},
+			},
+		},
+		scales: {
+			x: {
+				beginAtZero: true,
+				grace: "6%",
+				grid: { color: gridColor, drawTicks: false },
+				border: { display: false },
+				ticks: {
+					color: mutedColor,
+					font: { size: 10 },
+					padding: 8,
+					callback(value) {
+						return formatMoney(value).replace(",00", "");
+					},
+				},
+			},
+			y: {
+				grid: { display: false },
+				border: { display: false },
+				ticks: { color: textColor, font: { size: 11, weight: "700" }, padding: 9 },
+			},
+		},
+	};
+
+	return (
+		<div className="cost-market-chart-content">
+			<div className="cost-market-chart-legend" aria-label="Legenda do gráfico">
+				<span><i className="cost-market-chart-dot cost-market-chart-dot--cost" />Custo</span>
+				<span><i className="cost-market-chart-dot cost-market-chart-dot--market" />Valor atual</span>
+			</div>
+			<div className="cost-market-chart-scroll">
+				<div className="cost-market-chart-wrap" style={{ height: `${chartHeight}px` }}>
+					<Bar data={data} options={options} />
+				</div>
+			</div>
+		</div>
 	);
 }
 

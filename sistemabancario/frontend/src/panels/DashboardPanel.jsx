@@ -27,8 +27,8 @@ const centerTextPlugin = {
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
 		ctx.fillStyle = mutedColor;
-		ctx.font = "500 12px system-ui";
-		ctx.fillText("Patrimônio", x, y - 10);
+		ctx.font = "600 11px system-ui";
+		ctx.fillText("Patrimônio", x, y - 11);
 		ctx.fillStyle = textColor;
 		ctx.font = "700 15px system-ui";
 		ctx.fillText(options.value, x, y + 13);
@@ -106,7 +106,11 @@ export default function DashboardPanel({ onNavigate }) {
 		};
 	}, [selectedId, refreshKey]);
 
-	const positions = useMemo(() => carteira?.posicoes || [], [carteira]);
+	const selectedWallet = useMemo(
+		() => carteiras.find((item) => String(item.id) === String(selectedId)) || null,
+		[carteiras, selectedId]
+	);
+	const positions = useMemo(() => mergePositionData(carteira?.posicoes, indicadores?.posicoes), [carteira, indicadores]);
 	const distribution = useMemo(() => {
 		const positive = positions
 			.map((position) => ({ ...position, marketValue: Number(position.valorMercadoAtual) }))
@@ -127,31 +131,42 @@ export default function DashboardPanel({ onNavigate }) {
 
 	if (carteiras.length === 0) {
 		return (
-		<section className="dashboard-empty card" aria-labelledby="empty-wallet-title">
-			<span className="empty-icon" aria-hidden="true"><WalletIcon /></span>
-			<h2 id="empty-wallet-title">Você ainda não possui uma carteira.</h2>
-			<p>Crie sua primeira carteira para começar a acompanhar seus investimentos.</p>
-			<button type="button" onClick={() => onNavigate("carteiras")}>Criar carteira</button>
-		</section>
-	);
+			<section className="dashboard-empty card" aria-labelledby="empty-wallet-title">
+				<span className="empty-icon" aria-hidden="true"><WalletIcon /></span>
+				<p className="dashboard-empty-eyebrow">Primeiro passo</p>
+				<h2 id="empty-wallet-title">Você ainda não possui uma carteira.</h2>
+				<p>Crie uma carteira para organizar seus investimentos e acompanhar os indicadores disponíveis.</p>
+				<button type="button" onClick={() => onNavigate("carteiras")}>Criar carteira</button>
+			</section>
+		);
 	}
 
 	return (
 		<div className="dashboard">
 			<section className="dashboard-heading" aria-labelledby="dashboard-overview-title">
-				<div>
-					<p className="dashboard-eyebrow">Resumo financeiro</p>
-					<h2 id="dashboard-overview-title">Visão geral</h2>
-					<p>Acompanhe os principais números da sua carteira.</p>
+				<div className="dashboard-heading-copy">
+					<p className="dashboard-eyebrow">Painel executivo</p>
+					<h2 id="dashboard-overview-title">Visão geral dos seus investimentos</h2>
+					<p>Acompanhe patrimônio, resultados e composição da carteira selecionada.</p>
 				</div>
-				<label className="wallet-selector">
-					<span>Carteira selecionada</span>
-					<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-						{carteiras.map((item) => (
-							<option key={item.id} value={item.id}>{item.id} — {item.nomeDaCarteira}</option>
-						))}
-					</select>
-				</label>
+				<div className="dashboard-wallet-context">
+					<div className="dashboard-wallet-label">
+						<span>Carteira selecionada</span>
+						{selectedWallet?.id != null ? <small>ID {selectedWallet.id}</small> : null}
+					</div>
+					<label className="wallet-selector">
+						<span className="dashboard-visually-hidden">Selecionar carteira</span>
+						<select
+							value={selectedId}
+							onChange={(event) => setSelectedId(event.target.value)}
+							aria-label="Carteira selecionada"
+						>
+							{carteiras.map((item) => (
+								<option key={item.id} value={item.id}>{item.nomeDaCarteira} · ID {item.id}</option>
+							))}
+						</select>
+					</label>
+				</div>
 			</section>
 
 			{loadingDashboard ? (
@@ -160,36 +175,94 @@ export default function DashboardPanel({ onNavigate }) {
 				<DashboardError message={error} onRetry={() => setRefreshKey((key) => key + 1)} />
 			) : (
 				<>
-					<KpiGrid carteira={carteira} indicadores={indicadores} />
-					<section className="dashboard-insights">
-						<DistributionCard distribution={distribution} patrimonio={indicadores?.valorMercadoTotalCarteira} />
-						<PortfolioSummary indicadores={indicadores} carteira={carteira} />
-					</section>
-					<PositionsTable positions={positions} indicadores={indicadores} />
+					<PortfolioOverview carteira={carteira} indicadores={indicadores} />
+					{positions.length === 0 ? (
+						<DashboardEmptyPositions onNavigate={() => onNavigate("carteiras")} />
+					) : (
+						<>
+							<section className="dashboard-insights">
+								<DistributionCard distribution={distribution} patrimonio={indicadores?.valorMercadoTotalCarteira} />
+								<PortfolioComposition indicadores={indicadores} />
+							</section>
+							<PositionsTable positions={positions} indicadores={indicadores} />
+						</>
+					)}
 				</>
 			)}
 		</div>
 	);
 }
 
-function KpiGrid({ carteira, indicadores }) {
-	const cards = [
-		{ label: "Saldo disponível", value: formatMoney(carteira?.saldoTotal), note: "Disponível para investir" },
-		{ label: "Total investido", value: formatMoney(indicadores?.custoTotalCarteira), note: "Custo atual da carteira" },
-		{ label: "Patrimônio atual", value: formatMoney(indicadores?.valorMercadoTotalCarteira), note: "Valor de mercado" },
-		{ label: "Rentabilidade atual", value: formatPercent(indicadores?.rentabilidadeNaoRealizadaPercentual), tone: valueTone(indicadores?.rentabilidadeNaoRealizadaPercentual), note: "Resultado não realizado" },
-		{ label: "Resultado realizado", value: formatMoney(carteira?.lucroPrejuizoRealizado), tone: valueTone(carteira?.lucroPrejuizoRealizado), note: "Lucro ou prejuízo consolidado" },
-	];
+function mergePositionData(detailPositions, metricPositions) {
+	const details = Array.isArray(detailPositions) ? detailPositions : [];
+	if (!Array.isArray(metricPositions) || metricPositions.length === 0) return details;
+	const metricsByTicker = new Map(metricPositions.map((position) => [position.ticker, position]));
+	return details.map((position) => {
+		const metrics = metricsByTicker.get(position.ticker);
+		if (!metrics) return position;
+		return {
+			...position,
+			quantidade: metrics.quantidade,
+			precoMedioPonderado: metrics.precoMedioPonderado,
+			cotacaoAtual: metrics.cotacaoMercadoAtual,
+			valorCustoTotal: metrics.valorCusto,
+			valorMercadoAtual: metrics.valorMercado,
+		};
+	});
+}
+
+function PortfolioOverview({ carteira, indicadores }) {
+	const marketValue = Number(indicadores?.valorMercadoTotalCarteira);
+	const investedValue = Number(indicadores?.custoTotalCarteira);
+	const currentResult = Number.isFinite(marketValue) && Number.isFinite(investedValue)
+		? marketValue - investedValue
+		: null;
+	const currentTone = valueTone(currentResult);
+	const realizedTone = valueTone(carteira?.lucroPrejuizoRealizado);
+
 	return (
-		<section className="kpi-grid" aria-label="Indicadores da carteira">
-			{cards.map((card) => (
-				<article className="kpi-card" key={card.label}>
-					<span>{card.label}</span>
-					<strong className={card.tone ? "value--" + card.tone : ""}>{card.value}</strong>
-					<small>{card.note}</small>
-				</article>
-			))}
+		<section className="dashboard-summary-grid" aria-label="Resumo financeiro da carteira">
+			<article className="portfolio-hero">
+				<header>
+					<div>
+						<span>Valor de mercado</span>
+						<small>Valor atual das posições</small>
+					</div>
+					<span className="portfolio-hero-status">Posição atual</span>
+				</header>
+				<strong className="portfolio-hero-value">{formatMoney(indicadores?.valorMercadoTotalCarteira)}</strong>
+				<div className="portfolio-current-result">
+					<div>
+						<span>Resultado atual</span>
+						<small>Não realizado</small>
+					</div>
+					<div className={`portfolio-current-result-value value--${currentTone}`}>
+						<strong>{formatMoney(currentResult)}</strong>
+						<span>{formatPercent(indicadores?.rentabilidadeNaoRealizadaPercentual)}</span>
+					</div>
+				</div>
+			</article>
+
+			<article className="dashboard-secondary-kpis" aria-label="Indicadores complementares">
+				<FinancialMetric label="Saldo disponível" value={formatMoney(carteira?.saldoTotal)} note="Disponível para investir" />
+				<FinancialMetric label="Custo das posições" value={formatMoney(indicadores?.custoTotalCarteira)} note="Custo atual das posições" />
+				<FinancialMetric
+					label="Resultado realizado"
+					value={formatMoney(carteira?.lucroPrejuizoRealizado)}
+					note="Lucro ou prejuízo já consolidado"
+					tone={realizedTone}
+				/>
+			</article>
 		</section>
+	);
+}
+
+function FinancialMetric({ label, value, note, tone }) {
+	return (
+		<div className="dashboard-metric-row">
+			<div><span>{label}</span><small>{note}</small></div>
+			<strong className={tone ? `value--${tone}` : ""}>{value}</strong>
+		</div>
 	);
 }
 
@@ -207,7 +280,7 @@ function DistributionCard({ distribution, patrimonio }) {
 	const options = {
 		responsive: true,
 		maintainAspectRatio: false,
-		cutout: "72%",
+		cutout: "73%",
 		plugins: {
 			legend: { display: false },
 			dashboardCenterText: { value: formatMoney(patrimonio) },
@@ -223,35 +296,37 @@ function DistributionCard({ distribution, patrimonio }) {
 	};
 
 	return (
-		<article className="dashboard-card distribution-card">
-			<header className="dashboard-card-head"><div><h3>Distribuição da carteira</h3><p>Participação por valor de mercado</p></div></header>
-			{distribution.length === 0 ? <PositionsEmpty /> : (
-				<div className="distribution-content">
-					<div className="donut-wrap"><Doughnut data={data} options={options} /></div>
-					<ul className="distribution-legend">
-						{distribution.map((item) => (
-							<li key={item.acaoId ?? item.ticker}>
-								<span className="legend-dot" style={{ backgroundColor: item.color }} />
-								<strong>{item.ticker}</strong>
-								<span>{formatPercent(item.percentage).replace("+", "")}</span>
-							</li>
-						))}
-					</ul>
-				</div>
-			)}
+		<article className="dashboard-card dashboard-allocation-card">
+			<header className="dashboard-card-head">
+				<div><span className="dashboard-section-index">01</span><h3>Distribuição da carteira</h3><p>Participação de cada ativo no valor de mercado</p></div>
+			</header>
+			<div className="distribution-content">
+				<div className="donut-wrap"><Doughnut data={data} options={options} /></div>
+				<ul className="distribution-legend" aria-label="Participação dos ativos">
+					{distribution.map((item) => (
+						<li key={item.acaoId ?? item.ticker}>
+							<span className="legend-dot" style={{ backgroundColor: item.color }} />
+							<span className="legend-asset"><strong>{item.ticker}</strong><small>{formatMoney(item.marketValue)}</small></span>
+							<span className="legend-share">{formatPercent(item.percentage).replace("+", "")}</span>
+						</li>
+					))}
+				</ul>
+			</div>
 		</article>
 	);
 }
 
-function PortfolioSummary({ indicadores, carteira }) {
+function PortfolioComposition({ indicadores }) {
 	return (
-		<article className="dashboard-card summary-card">
-			<header className="dashboard-card-head"><div><h3>Resumo da carteira</h3><p>Informações complementares</p></div><span className="wallet-id">ID {carteira?.id}</span></header>
-			<dl className="summary-list">
+		<article className="dashboard-card dashboard-composition-card">
+			<header className="dashboard-card-head">
+				<div><span className="dashboard-section-index">02</span><h3>Composição atual</h3><p>Quantidades e médias retornadas pela carteira</p></div>
+			</header>
+			<dl className="dashboard-composition-list">
+				<div><dt>Posições</dt><dd>{formatNumber(indicadores?.quantidadePosicoes)}</dd></div>
+				<div><dt>Total de ações</dt><dd>{formatNumber(indicadores?.quantidadeTotalTitulos)}</dd></div>
 				<div><dt>Preço médio da carteira</dt><dd>{formatMoney(indicadores?.mediaPrecoMedioPonderado)}</dd></div>
-				<div><dt>Valor médio por título</dt><dd>{formatMoney(indicadores?.mediaValorMercadoPorTitulo)}</dd></div>
-				<div><dt>Quantidade de posições</dt><dd>{formatNumber(indicadores?.quantidadePosicoes)}</dd></div>
-				<div><dt>Total de títulos</dt><dd>{formatNumber(indicadores?.quantidadeTotalTitulos)}</dd></div>
+				<div><dt>Valor médio por ação</dt><dd>{formatMoney(indicadores?.mediaValorMercadoPorTitulo)}</dd></div>
 			</dl>
 		</article>
 	);
@@ -259,39 +334,63 @@ function PortfolioSummary({ indicadores, carteira }) {
 
 function PositionsTable({ positions, indicadores }) {
 	return (
-		<section className="dashboard-card positions-card">
-			<header className="dashboard-card-head">
-				<div><h3>Posições da carteira</h3><p>{formatNumber(indicadores?.quantidadePosicoes)} {Number(indicadores?.quantidadePosicoes) === 1 ? "posição" : "posições"} · {formatNumber(indicadores?.quantidadeTotalTitulos)} {Number(indicadores?.quantidadeTotalTitulos) === 1 ? "título" : "títulos"}</p></div>
+		<section className="dashboard-card dashboard-positions-card">
+			<header className="dashboard-card-head dashboard-positions-head">
+				<div><span className="dashboard-section-index">03</span><h3>Posições da carteira</h3><p>{formatNumber(indicadores?.quantidadePosicoes)} {Number(indicadores?.quantidadePosicoes) === 1 ? "posição" : "posições"} · {formatNumber(indicadores?.quantidadeTotalTitulos)} {Number(indicadores?.quantidadeTotalTitulos) === 1 ? "ação" : "ações"}</p></div>
+				<span className="dashboard-table-caption">Valores atuais</span>
 			</header>
-			{positions.length === 0 ? <PositionsEmpty /> : (
-				<div className="dashboard-table-wrap">
-					<table className="dashboard-table">
-						<thead><tr><th>ID</th><th>Ativo</th><th>Quantidade</th><th>Preço médio</th><th>Cotação atual</th><th>Valor atual</th></tr></thead>
-						<tbody>
-							{positions.map((position) => (
+			<div className="dashboard-table-wrap">
+				<table className="dashboard-table dashboard-positions-table">
+					<thead><tr><th>Ativo</th><th>Quantidade</th><th>Preço médio</th><th>Cotação atual</th><th>Custo</th><th>Valor atual</th><th>Resultado atual</th></tr></thead>
+					<tbody>
+						{positions.map((position) => {
+							const marketValue = Number(position.valorMercadoAtual);
+							const costValue = Number(position.valorCustoTotal);
+							const result = Number.isFinite(marketValue) && Number.isFinite(costValue) ? marketValue - costValue : null;
+							const resultPercent = Number.isFinite(result) && costValue > 0 ? (result / costValue) * 100 : null;
+							const tone = valueTone(result);
+							return (
 								<tr key={position.acaoId ?? position.ticker}>
-									<td><span className="table-id">#{position.acaoId}</span></td>
-									<td><strong>{position.ticker}</strong>{position.nomeEmpresa ? <small>{position.nomeEmpresa}</small> : null}</td>
+									<td><strong className="position-ticker">{position.ticker}</strong>{position.nomeEmpresa ? <small>{position.nomeEmpresa}</small> : null}</td>
 									<td>{formatNumber(position.quantidade)}</td>
 									<td>{formatMoney(position.precoMedioPonderado)}</td>
 									<td>{formatMoney(position.cotacaoAtual)}</td>
+									<td>{formatMoney(position.valorCustoTotal)}</td>
 									<td><strong>{formatMoney(position.valorMercadoAtual)}</strong></td>
+									<td><strong className={`value--${tone}`}>{formatMoney(result)}</strong>{resultPercent != null ? <small className={`position-result-percent value--${tone}`}>{formatPercent(resultPercent)}</small> : null}</td>
 								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-			)}
+							);
+						})}
+					</tbody>
+				</table>
+			</div>
 		</section>
 	);
 }
 
-function PositionsEmpty() {
-	return <div className="positions-empty"><strong>Sua carteira ainda não possui ações.</strong><span>Registre uma compra para começar a acompanhar sua distribuição.</span></div>;
+function DashboardEmptyPositions({ onNavigate }) {
+	return (
+		<section className="dashboard-card dashboard-empty-positions" aria-labelledby="empty-positions-title">
+			<span className="empty-positions-mark" aria-hidden="true">0</span>
+			<div>
+				<p className="dashboard-empty-eyebrow">Carteira sem posições</p>
+				<h3 id="empty-positions-title">Esta carteira ainda não possui ativos.</h3>
+				<p>Quando a primeira compra for registrada, a distribuição e as posições aparecerão aqui.</p>
+			</div>
+			<button type="button" onClick={onNavigate}>Ir para Carteiras</button>
+		</section>
+	);
 }
 
 function DashboardLoading({ compact = false }) {
-	return <div className={"dashboard-loading" + (compact ? " dashboard-loading--compact" : "")} aria-label="Carregando dados do Dashboard"><div className="loading-line loading-line--title" /><div className="loading-kpis">{Array.from({ length: 5 }, (_, index) => <div className="loading-card" key={index} />)}</div><div className="loading-panel" /></div>;
+	return (
+		<div className={`dashboard-loading dashboard-loading--executive${compact ? " dashboard-loading--compact" : ""}`} role="status" aria-label="Carregando dados do Dashboard">
+			{compact ? null : <div className="dashboard-loading-heading"><span /><span /></div>}
+			<div className="dashboard-loading-summary"><div className="loading-hero" /><div className="loading-metrics">{[0, 1, 2].map((item) => <span key={item} />)}</div></div>
+			<div className="dashboard-loading-insights"><div /><div /></div>
+			<span className="dashboard-visually-hidden">Carregando dados do Dashboard</span>
+		</div>
+	);
 }
 
 function DashboardError({ message, onRetry }) {

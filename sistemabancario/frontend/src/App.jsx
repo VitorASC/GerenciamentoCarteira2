@@ -12,6 +12,13 @@ export default function App() {
 	const [authTab, setAuthTab] = useState("login");
 
 	function showAuth(tab = "login") {
+		if (window.location.hash) {
+			window.history.replaceState(
+				window.history.state,
+				"",
+				window.location.pathname + window.location.search
+			);
+		}
 		clearSessionNotice();
 		setAuthTab(tab);
 		setPublicView("auth");

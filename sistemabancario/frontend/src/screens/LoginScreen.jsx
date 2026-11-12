@@ -53,14 +53,14 @@ export default function LoginScreen({ initialTab = "login", onBack, onToggleThem
 				<MarketLines />
 			</section>
 
-			<section className="auth-form-panel">
-				<div className="auth-theme-toggle">
-					<ThemeToggle onToggle={onToggleTheme} />
-				</div>
-				<div className="auth-card">
-					<button type="button" className="auth-back-link" onClick={onBack}>
-						<span aria-hidden="true">←</span> Voltar ao início
-					</button>
+			<section className={`auth-form-panel${isLogin ? "" : " auth-form-panel--register"}`}>
+				<div className={`auth-card${isLogin ? "" : " auth-card--register"}`}>
+					<div className="auth-card-toolbar">
+						<button type="button" className="auth-back-link" onClick={onBack}>
+							<span aria-hidden="true">←</span> Voltar ao início
+						</button>
+						<ThemeToggle onToggle={onToggleTheme} />
+					</div>
 					<div className="auth-card-brand"><BrandMark /></div>
 					<div className="auth-card-heading">
 						<p className="auth-eyebrow">{isLogin ? "Bem-vindo de volta" : "Comece agora"}</p>

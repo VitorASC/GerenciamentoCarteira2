@@ -1,12 +1,13 @@
 import { useState } from "react";
+import BrandMark from "../components/BrandMark";
 import ThemeToggle from "../components/ThemeToggle";
 import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
 import { useAuth } from "../hooks/useAuth";
 
-export default function LoginScreen({ onToggleTheme }) {
+export default function LoginScreen({ initialTab = "login", onBack, onToggleTheme }) {
 	const { sessionNotice, clearSessionNotice } = useAuth();
-	const [tab, setTab] = useState("login");
+	const [tab, setTab] = useState(initialTab);
 	const [loginEmail, setLoginEmail] = useState("");
 	const [loginNotice, setLoginNotice] = useState(null);
 	const isLogin = tab === "login";
@@ -57,6 +58,9 @@ export default function LoginScreen({ onToggleTheme }) {
 					<ThemeToggle onToggle={onToggleTheme} />
 				</div>
 				<div className="auth-card">
+					<button type="button" className="auth-back-link" onClick={onBack}>
+						<span aria-hidden="true">←</span> Voltar ao início
+					</button>
 					<div className="auth-card-brand"><BrandMark /></div>
 					<div className="auth-card-heading">
 						<p className="auth-eyebrow">{isLogin ? "Bem-vindo de volta" : "Comece agora"}</p>
@@ -83,20 +87,6 @@ export default function LoginScreen({ onToggleTheme }) {
 				</div>
 			</section>
 		</main>
-	);
-}
-
-function BrandMark({ className = "" }) {
-	return (
-		<div className={("brand-mark " + className).trim()} aria-label="GestãoAtiva">
-			<span className="brand-symbol" aria-hidden="true">
-				<svg viewBox="0 0 36 36">
-					<path d="M8 24.5 14.2 18l4.7 3.8L28 11.5" />
-					<path d="M23 11.5h5v5" />
-				</svg>
-			</span>
-			<span>GestãoAtiva</span>
-		</div>
 	);
 }
 

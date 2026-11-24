@@ -1,0 +1,20 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-01-controle-perfis-acesso
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: controle_perfis_acesso
+            columns:
+              - column:
+                  name: id
+                  type: INT
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+        - insert:
+            tableName: controle_perfis_acesso
+            columns:
+              - column:
+                  name: id
+                  valueNumeric: 1

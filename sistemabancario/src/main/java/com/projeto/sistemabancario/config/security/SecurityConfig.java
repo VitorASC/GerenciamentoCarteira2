@@ -1,5 +1,6 @@
 package com.projeto.sistemabancario.config.security;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -18,6 +19,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import jakarta.servlet.DispatcherType;
 
 @Configuration
 @EnableWebSecurity
@@ -47,22 +50,52 @@ public class SecurityConfig {
 				.authenticationEntryPoint(jwtAuthenticationEntryPoint)
 				.accessDeniedHandler(jwtAccessDeniedHandler));
 		http.authorizeHttpRequests(auth -> {
-			auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
-			auth.requestMatchers(HttpMethod.POST, "/usuarios").permitAll();
-			auth.requestMatchers(HttpMethod.POST, "/auth/login").permitAll();
+			auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
+			auth.requestMatchers(HttpMethod.POST, "/usuarios", "/auth/login").permitAll();
 			if (environment.acceptsProfiles(Profiles.of("dev"))) {
 				auth.requestMatchers("/h2-console", "/h2-console/**").permitAll();
 			}
-			auth.requestMatchers(HttpMethod.GET, "/", "/dashboard", "/error").permitAll();
-			auth.requestMatchers(HttpMethod.GET, "/css/**", "/js/**", "/assets/**", "/index.html",
-					"/favicon.ico", "/vite.svg").permitAll();
-			auth.anyRequest().authenticated();
+			String[] frontend = {"/", "/dashboard", "/index.html", "/assets/**", "/favicon.ico"};
+			auth.requestMatchers(HttpMethod.GET, frontend).permitAll();
+			auth.requestMatchers(HttpMethod.HEAD, frontend).permitAll();
+
+			auth.requestMatchers(HttpMethod.GET, "/usuarios").hasRole("ADMIN");
+			auth.requestMatchers(HttpMethod.HEAD, "/usuarios").hasRole("ADMIN");
+			auth.requestMatchers(HttpMethod.PUT, "/usuarios/{id:[0-9]+}/perfil-acesso",
+					"/acoes/{id:[0-9]+}/atualizar-cotacao").hasRole("ADMIN");
+			auth.requestMatchers(HttpMethod.POST, "/acoes", "/corretoras").hasRole("ADMIN");
+			auth.requestMatchers(HttpMethod.DELETE, "/acoes/{id:[0-9]+}", "/corretoras/{id:[0-9]+}").hasRole("ADMIN");
+
+			String[] consultas = {
+					"/actuator", "/actuator/health",
+					"/usuarios/{id:[0-9]+}", "/usuarios/cpf/{cpf}",
+					"/acoes", "/acoes/{id:[0-9]+}", "/acoes/ticker/{ticker}", "/acoes/{id:[0-9]+}/historico-cotacoes",
+					"/corretoras", "/corretoras/{id:[0-9]+}", "/corretoras/cnpj/{cnpj}",
+					"/carteiras", "/carteiras/{id:[0-9]+}", "/carteiras/usuario/{id:[0-9]+}",
+					"/carteiras/{id:[0-9]+}/indicadores/ticker/{ticker}",
+					"/carteiras/{id:[0-9]+}/indicadores/media-carteira"
+			};
+			auth.requestMatchers(HttpMethod.GET, consultas).hasAnyRole("PADRAO", "ADMIN");
+			auth.requestMatchers(HttpMethod.HEAD, consultas).hasAnyRole("PADRAO", "ADMIN");
+			auth.requestMatchers(HttpMethod.PUT, "/usuarios/{id:[0-9]+}", "/carteiras/{id:[0-9]+}")
+				.hasAnyRole("PADRAO", "ADMIN");
+			auth.requestMatchers(HttpMethod.POST, "/carteiras", "/carteiras/{id:[0-9]+}/compras",
+					"/carteiras/{id:[0-9]+}/vendas").hasAnyRole("PADRAO", "ADMIN");
+			auth.requestMatchers(HttpMethod.DELETE, "/carteiras/{id:[0-9]+}").hasAnyRole("PADRAO", "ADMIN");
+			auth.anyRequest().denyAll();
 		});
 		if (environment.acceptsProfiles(Profiles.of("dev"))) {
 			http.headers(h -> h.frameOptions(FrameOptionsConfig::sameOrigin));
 		}
 		http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 		return http.build();
+	}
+
+	@Bean
+	public FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration() {
+		var registration = new FilterRegistrationBean<>(jwtAuthenticationFilter);
+		registration.setEnabled(false);
+		return registration;
 	}
 
 	@Bean

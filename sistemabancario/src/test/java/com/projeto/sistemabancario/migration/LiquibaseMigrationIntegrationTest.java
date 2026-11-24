@@ -25,7 +25,8 @@ class LiquibaseMigrationIntegrationTest {
 			"CARTEIRAS_INVESTIMENTO",
 			"POSICOES_CARTEIRA",
 			"TRANSACOES",
-			"HISTORICO_COTACOES");
+			"HISTORICO_COTACOES",
+			"CONTROLE_PERFIS_ACESSO");
 
 	private static final Set<String> CHANGESET_IDS = Set.of(
 			"001-01-create-usuarios",
@@ -37,7 +38,8 @@ class LiquibaseMigrationIntegrationTest {
 			"001-07-create-historico-cotacoes",
 			"001-08-add-unique-constraints",
 			"001-09-add-foreign-keys",
-			"002-01-add-perfil-acesso-usuarios");
+			"002-01-add-perfil-acesso-usuarios",
+			"003-01-controle-perfis-acesso");
 
 	@Autowired
 	private DataSource dataSource;
@@ -59,6 +61,7 @@ class LiquibaseMigrationIntegrationTest {
 				"SELECT ID FROM DATABASECHANGELOG",
 				String.class));
 		assertThat(changesets).isEqualTo(CHANGESET_IDS);
+		assertThat(jdbc.queryForList("SELECT ID FROM CONTROLE_PERFIS_ACESSO", Integer.class)).containsExactly(1);
 		assertThat(jdbc.queryForObject(
 				"SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'USUARIOS' AND COLUMN_NAME = 'PERFIL_ACESSO'",
 				String.class)).isEqualTo("NO");

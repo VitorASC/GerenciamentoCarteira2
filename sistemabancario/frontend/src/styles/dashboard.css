@@ -412,15 +412,6 @@ body {
 	margin-top: 0;
 }
 
-.auth-field-hint {
-	display: block;
-	margin-top: 0.1rem;
-	color: #75867f !important;
-	font-size: 0.72rem !important;
-	font-weight: 500 !important;
-	line-height: 1.35;
-}
-
 .auth-register-actions {
 	margin-top: 1rem;
 	padding-top: 1rem;

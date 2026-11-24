@@ -6,6 +6,7 @@ import java.time.ZoneId;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,7 @@ public class AcaoService {
 	}
 
 	@Transactional
+	@PreAuthorize("hasRole('ADMIN')")
 	public AcaoResponse cadastrar(AcaoCadastroRequest request) {
 		String ticker = request.ticker().trim().toUpperCase();
 		if (acaoRepository.existsByTickerIgnoreCase(ticker)) {
@@ -98,6 +100,7 @@ public class AcaoService {
 	}
 
 	@Transactional
+	@PreAuthorize("hasRole('ADMIN')")
 	public AcaoResponse atualizarCotacao(Long id) {
 		Acao acao = acaoRepository.findById(id)
 			.orElseThrow(() -> new ResourceNotFoundException("Ação não encontrada."));
@@ -118,6 +121,7 @@ public class AcaoService {
 	}
 
 	@Transactional
+	@PreAuthorize("hasRole('ADMIN')")
 	public void excluir(Long id) {
 		Acao acao = acaoRepository.findById(id)
 			.orElseThrow(() -> new ResourceNotFoundException("Ação não encontrada."));

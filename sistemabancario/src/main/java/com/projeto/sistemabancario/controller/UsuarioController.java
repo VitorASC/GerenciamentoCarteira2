@@ -5,7 +5,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.projeto.sistemabancario.config.security.UsuarioPrincipal;
 import com.projeto.sistemabancario.dto.request.UsuarioAtualizacaoRequest;
 import com.projeto.sistemabancario.dto.request.UsuarioCadastroRequest;
+import com.projeto.sistemabancario.dto.request.UsuarioPerfilAcessoRequest;
 import com.projeto.sistemabancario.dto.response.UsuarioResponse;
 import com.projeto.sistemabancario.service.UsuarioService;
 
@@ -40,7 +40,6 @@ public class UsuarioController {
 	}
 
 	@GetMapping
-	@PreAuthorize("hasRole('ADMIN')")
 	public Page<UsuarioResponse> listar(@PageableDefault(size = 20) Pageable pageable) {
 		return usuarioService.listar(pageable);
 	}
@@ -57,7 +56,13 @@ public class UsuarioController {
 
 	@PutMapping("/{id}")
 	public UsuarioResponse atualizar(@AuthenticationPrincipal UsuarioPrincipal principal, @PathVariable Long id,
-			@RequestBody UsuarioAtualizacaoRequest request) {
+			@Valid @RequestBody UsuarioAtualizacaoRequest request) {
 		return usuarioService.atualizar(id, request, principal.getUsuarioId(), principal.isAdmin());
+	}
+
+	@PutMapping("/{id}/perfil-acesso")
+	public UsuarioResponse alterarPerfilAcesso(@PathVariable Long id,
+			@Valid @RequestBody UsuarioPerfilAcessoRequest request) {
+		return usuarioService.alterarPerfilAcesso(id, request.perfilAcesso());
 	}
 }

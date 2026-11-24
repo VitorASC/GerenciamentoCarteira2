@@ -4,7 +4,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,7 +32,6 @@ public class AcaoController {
 	}
 
 	@PostMapping
-	@PreAuthorize("hasRole('ADMIN')")
 	@ResponseStatus(HttpStatus.CREATED)
 	public AcaoResponse cadastrar(@Valid @RequestBody AcaoCadastroRequest request) {
 		return acaoService.cadastrar(request);
@@ -61,13 +59,11 @@ public class AcaoController {
 	}
 
 	@PutMapping("/{id}/atualizar-cotacao")
-	@PreAuthorize("hasRole('ADMIN')")
 	public AcaoResponse atualizarCotacao(@PathVariable Long id) {
 		return acaoService.atualizarCotacao(id);
 	}
 
 	@DeleteMapping("/{id}")
-	@PreAuthorize("hasRole('ADMIN')")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void excluir(@PathVariable Long id) {
 		acaoService.excluir(id);

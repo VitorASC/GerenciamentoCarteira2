@@ -8,8 +8,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
@@ -30,19 +28,9 @@ public class GlobalExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-	@ExceptionHandler(BadCredentialsException.class)
-	public ResponseEntity<ErroResponse> credenciaisInvalidas(BadCredentialsException ex, HttpServletRequest req) {
-		return montar(HttpStatus.UNAUTHORIZED, "Credenciais inválidas", "E-mail ou senha inválidos.", req);
-	}
-
-	@ExceptionHandler(DisabledException.class)
-	public ResponseEntity<ErroResponse> usuarioInativo(DisabledException ex, HttpServletRequest req) {
-		return montar(HttpStatus.FORBIDDEN, "Conta inativa", "Usuário inativo. Entre em contato com o suporte.", req);
-	}
-
 	@ExceptionHandler(AuthenticationException.class)
 	public ResponseEntity<ErroResponse> autenticacao(AuthenticationException ex, HttpServletRequest req) {
-		return montar(HttpStatus.UNAUTHORIZED, "Não autenticado", ex.getMessage() != null ? ex.getMessage() : "Falha na autenticação.", req);
+		return montar(HttpStatus.UNAUTHORIZED, "Credenciais inválidas", "E-mail ou senha inválidos.", req);
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)

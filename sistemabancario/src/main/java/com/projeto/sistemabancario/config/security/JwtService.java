@@ -2,16 +2,19 @@ package com.projeto.sistemabancario.config.security;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.stereotype.Service;
 
 import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.MalformedJwtException;
 
 @Service
 public class JwtService {
@@ -20,6 +23,7 @@ public class JwtService {
 
 	private final JwtProperties properties;
 	private final SecretKey signingKey;
+	private final JwtParser parser;
 
 	public JwtService(JwtProperties properties) {
 		this.properties = properties;
@@ -31,7 +35,23 @@ public class JwtService {
 		if (keyBytes.length < MINIMUM_HMAC_KEY_BYTES) {
 			throw new IllegalStateException("APP_SECURITY_JWT_SECRET deve possuir pelo menos 32 bytes (256 bits)");
 		}
-		this.signingKey = Keys.hmacShaKeyFor(keyBytes);
+		if (properties.getIssuer() == null || properties.getIssuer().isBlank()) {
+			throw new IllegalStateException("APP_SECURITY_JWT_ISSUER deve ser definido");
+		}
+		if (properties.getExpirationMs() < 1_000) {
+			throw new IllegalStateException("APP_SECURITY_JWT_EXPIRATION_MS deve ser de pelo menos 1000 ms");
+		}
+		this.signingKey = new SecretKeySpec(keyBytes, "HmacSHA256");
+		var algoritmos = Jwts.parser()
+			.verifyWith(signingKey)
+			.requireIssuer(properties.getIssuer())
+			.sig();
+		for (var algoritmo : Jwts.SIG.get().values()) {
+			if (!Jwts.SIG.HS256.equals(algoritmo)) {
+				algoritmos.remove(algoritmo);
+			}
+		}
+		this.parser = algoritmos.and().build();
 	}
 
 	public String gerarToken(Long usuarioId, String email, boolean ativo, PerfilAcesso perfilAcesso) {
@@ -39,13 +59,15 @@ public class JwtService {
 		Date issuedAt = new Date(now);
 		Date expiresAt = new Date(now + properties.getExpirationMs());
 		return Jwts.builder()
+			.issuer(properties.getIssuer())
 			.subject(String.valueOf(usuarioId))
+			.id(UUID.randomUUID().toString())
 			.claim("email", email)
 			.claim("ativo", ativo)
 			.claim("perfilAcesso", perfilAcesso.name())
 			.issuedAt(issuedAt)
 			.expiration(expiresAt)
-			.signWith(signingKey)
+			.signWith(signingKey, Jwts.SIG.HS256)
 			.compact();
 	}
 
@@ -54,10 +76,14 @@ public class JwtService {
 	}
 
 	public Claims parseClaims(String token) {
-		return Jwts.parser()
-			.verifyWith(signingKey)
-			.build()
-			.parseSignedClaims(token)
-			.getPayload();
+		Claims claims = parser.parseSignedClaims(token).getPayload();
+		if (claims.getSubject() == null || claims.getSubject().isBlank()
+				|| claims.getId() == null || claims.getId().isBlank()
+				|| claims.getIssuedAt() == null || claims.getExpiration() == null
+				|| !claims.getExpiration().after(claims.getIssuedAt())
+				|| claims.get("perfilAcesso", String.class) == null) {
+			throw new MalformedJwtException("Claims obrigatórias do JWT inválidas ou ausentes");
+		}
+		return claims;
 	}
 }

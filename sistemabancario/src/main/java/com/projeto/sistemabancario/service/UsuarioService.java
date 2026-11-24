@@ -1,14 +1,19 @@
 package com.projeto.sistemabancario.service;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.projeto.sistemabancario.config.security.UsuarioPrincipal;
+import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
 import com.projeto.sistemabancario.dto.request.UsuarioAtualizacaoRequest;
 import com.projeto.sistemabancario.dto.request.UsuarioCadastroRequest;
 import com.projeto.sistemabancario.dto.response.UsuarioResponse;
@@ -48,11 +53,11 @@ public class UsuarioService {
 		Usuario u = new Usuario();
 		u.setNomeCompleto(request.nomeCompleto().trim());
 		u.setCpf(cpf);
-		u.setEmail(request.email().trim().toLowerCase());
+		u.setEmail(request.email().trim().toLowerCase(Locale.ROOT));
 		u.setSenhaHash(passwordEncoder.encode(request.senha()));
 		u.setDataNascimento(request.dataNascimento());
 		u.setPerfilInvestidor(request.perfilInvestidor());
-		u.setPerfilAcesso(request.perfilAcesso());
+		u.setPerfilAcesso(PerfilAcesso.PADRAO);
 		u.setDataCriacao(LocalDateTime.now());
 		u.setEstadoUsuario(EstadoUsuarioAtivo.INSTANCE);
 
@@ -60,6 +65,7 @@ public class UsuarioService {
 	}
 
 	@Transactional(readOnly = true)
+	@PreAuthorize("hasRole('ADMIN')")
 	public Page<UsuarioResponse> listar(Pageable pageable) {
 		return usuarioRepository.findAll(pageable).map(this::toResponse);
 	}
@@ -69,7 +75,7 @@ public class UsuarioService {
 		if (!admin && !id.equals(usuarioAutenticadoId)) {
 			throw new AccessDeniedException("Você só pode consultar o próprio cadastro.");
 		}
-		return buscarPorIdInterno(id);
+		return toResponse(buscarUsuario(id));
 	}
 
 	@Transactional(readOnly = true)
@@ -86,26 +92,23 @@ public class UsuarioService {
 	@Transactional
 	public UsuarioResponse atualizar(Long id, UsuarioAtualizacaoRequest request, Long usuarioAutenticadoId,
 			boolean admin) {
-		if (!admin && !id.equals(usuarioAutenticadoId)) {
+		boolean proprioCadastro = id.equals(usuarioAutenticadoId);
+		if (!admin && !proprioCadastro) {
 			throw new AccessDeniedException("Você só pode alterar o próprio cadastro.");
 		}
-		return atualizar(id, request);
-	}
 
-	private UsuarioResponse buscarPorIdInterno(Long id) {
-		return toResponse(usuarioRepository.findById(id)
-			.orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado.")));
-	}
-
-	@Transactional
-	public UsuarioResponse atualizar(Long id, UsuarioAtualizacaoRequest request) {
-		Usuario u = usuarioRepository.findById(id)
-			.orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado."));
+		usuarioRepository.bloquearAlteracoesAdministrativas();
+		Usuario autor = buscarUsuario(usuarioAutenticadoId);
+		if (!autor.getEstadoUsuario().isContaHabilitada()
+				|| (!proprioCadastro && autor.getPerfilAcesso() != PerfilAcesso.ADMIN)) {
+			throw new AccessDeniedException("Você não tem permissão para alterar este cadastro.");
+		}
+		Usuario u = proprioCadastro ? autor : buscarUsuario(id);
 		if (request.nomeCompleto() != null && !request.nomeCompleto().isBlank()) {
 			u.setNomeCompleto(request.nomeCompleto().trim());
 		}
 		if (request.email() != null && !request.email().isBlank()) {
-			String email = request.email().trim().toLowerCase();
+			String email = request.email().trim().toLowerCase(Locale.ROOT);
 			if (!email.equalsIgnoreCase(u.getEmail()) && usuarioRepository.existsByEmailIgnoreCase(email)) {
 				throw new DuplicateResourceException("Já existe usuário com este e-mail.");
 			}
@@ -115,11 +118,46 @@ public class UsuarioService {
 			u.setPerfilInvestidor(request.perfilInvestidor());
 		}
 		if (request.ativo() != null) {
+			if (Boolean.FALSE.equals(request.ativo())) {
+				preservarAdministradorAtivo(u);
+			}
 			u.setEstadoUsuario(Boolean.TRUE.equals(request.ativo())
 					? EstadoUsuarioAtivo.INSTANCE
 					: EstadoUsuarioInativo.INSTANCE);
 		}
 		return toResponse(usuarioRepository.save(u));
+	}
+
+	@Transactional
+	@PreAuthorize("hasRole('ADMIN')")
+	public UsuarioResponse alterarPerfilAcesso(Long id, PerfilAcesso perfilAcesso) {
+		var principal = (UsuarioPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		if (id.equals(principal.getUsuarioId())) {
+			throw new AccessDeniedException("Você só pode alterar o perfil de acesso de outro usuário.");
+		}
+		usuarioRepository.bloquearAlteracoesAdministrativas();
+		Usuario autor = buscarUsuario(principal.getUsuarioId());
+		if (autor.getPerfilAcesso() != PerfilAcesso.ADMIN || !autor.getEstadoUsuario().isContaHabilitada()) {
+			throw new AccessDeniedException("Você não tem permissão para alterar perfis de acesso.");
+		}
+		Usuario alvo = buscarUsuario(id);
+		if (perfilAcesso == PerfilAcesso.PADRAO) {
+			preservarAdministradorAtivo(alvo);
+		}
+		alvo.setPerfilAcesso(perfilAcesso);
+		return toResponse(usuarioRepository.save(alvo));
+	}
+
+	private void preservarAdministradorAtivo(Usuario usuario) {
+		if (usuario.getPerfilAcesso() == PerfilAcesso.ADMIN && usuario.getEstadoUsuario().isContaHabilitada()
+				&& !usuarioRepository.existsByPerfilAcessoAndAtivoTrueAndIdNot(PerfilAcesso.ADMIN, usuario.getId())) {
+			throw new RegraNegocioException("Deve permanecer pelo menos um administrador ativo.");
+		}
+	}
+
+	private Usuario buscarUsuario(Long id) {
+		return usuarioRepository.findById(id)
+			.orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado."));
 	}
 
 	private UsuarioResponse toResponse(Usuario u) {

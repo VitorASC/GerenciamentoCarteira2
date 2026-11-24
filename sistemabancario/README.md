@@ -85,17 +85,34 @@ ALPHAVANTAGE_API_KEY=sua_chave
 
 ## Segurança
 
-A aplicação utiliza **Spring Security + JWT**:
-- login em `POST /auth/login`;
-- endpoints protegidos exigem `Authorization: Bearer <token>`;
-- senhas armazenadas com BCrypt;
-- respostas 401/403 padronizadas;
-- sessão expirada é tratada automaticamente no front-end.
+O GestãoAtiva autentica por `POST /auth/login` e protege as rotas da API com Spring Security, BCrypt e um filtro Bearer próprio. O JJWT assina o token com HS256 e valida o emissor configurado. O token contém `iss`, `sub` com o ID da conta, `iat`, `exp`, `jti` único por emissão e `perfilAcesso`.
+
+- `401 Unauthorized` indica token ausente, inválido ou expirado em rota protegida. O login também retorna 401 com a mesma mensagem para senha incorreta, e-mail desconhecido ou conta inativa.
+- `403 Forbidden` indica que a conta autenticada não tem permissão para a operação ou para o recurso.
+- O cadastro público cria contas `PADRAO`. A cadeia HTTP e os serviços restringem a `ADMIN` as operações administrativas de ações, corretoras e usuários.
+- Um `ADMIN` pode usar `PUT /usuarios/{id}/perfil-acesso` com `{"perfilAcesso":"ADMIN"}` ou `{"perfilAcesso":"PADRAO"}` para alterar outra conta. A aplicação preserva pelo menos um administrador ativo.
+- Um usuário promovido deve fazer login novamente para receber um token com `ADMIN`. O rebaixamento retira os privilégios na próxima requisição à API.
+
+Preencha `APP_SECURITY_JWT_SECRET` com pelo menos 32 bytes aleatórios. Use `APP_SECURITY_JWT_ISSUER` para configurar o emissor, cujo padrão é `gestaoativa`. `APP_SECURITY_JWT_EXPIRATION_MS` mantém a validade de 24 horas por padrão. A redução dessa duração fica para a Aula 16, junto com o refresh token. Tokens emitidos antes da mudança de emissor exigem novo login.
+
+### Primeiro administrador
+
+Quando houver um administrador ativo, use a conta existente. Para criar a primeira conta administrativa, preencha as variáveis abaixo em `.env` com Docker Compose ou exporte-as no ambiente do processo Spring ao executar via Maven.
 
 ```env
-APP_SECURITY_JWT_SECRET=gere_uma_chave_segura
-APP_SECURITY_JWT_EXPIRATION_MS=86400000
+APP_ADMIN_BOOTSTRAP_ENABLED=true
+APP_ADMIN_BOOTSTRAP_EMAIL=
+APP_ADMIN_BOOTSTRAP_CPF=
+APP_ADMIN_BOOTSTRAP_PASSWORD=
 ```
+
+Use um e-mail e um CPF de 11 dígitos ainda livres. A senha precisa ter pelo menos 12 caracteres e até 72 bytes em UTF-8. Após confirmar o login, volte a flag para `false` e remova as credenciais do ambiente. Uma nova inicialização preserva o administrador existente enquanto houver um `ADMIN` ativo.
+
+### OpenAPI e Postman
+
+Importe o contrato de segurança no Swagger Editor ou em outra ferramenta OpenAPI local. Para executar as chamadas no Postman, importe a coleção e configure `email_padrao`, `senha_padrao`, `email_admin` e `senha_admin` no ambiente local. Use contas de teste. O cadastro de exemplo usa `cpf_padrao`. Os exemplos de promoção e rebaixamento usam `usuario_alvo_id` e devem ser executados individualmente em um banco de teste.
+
+[Contrato OpenAPI](docs/seguranca.openapi.yaml) · [Coleção Postman](docs/seguranca.postman_collection.json)
 
 ## Funcionalidades
 
@@ -138,8 +155,10 @@ Exibe saldo, total investido, valor de mercado, rentabilidade não realizada, lu
 | Método | Endpoint | Descrição |
 |---|---|---|
 | POST | `/auth/login` | Login |
-| POST | `/usuarios` | Cadastrar usuário |
+| POST | `/usuarios` | Cadastrar usuário PADRAO |
+| GET | `/usuarios` | Listar usuários como ADMIN |
 | GET | `/usuarios/{id}` | Buscar usuário |
+| PUT | `/usuarios/{id}/perfil-acesso` | Alterar o perfil de outra conta como ADMIN |
 | POST | `/corretoras` | Cadastrar corretora |
 | GET | `/corretoras` | Listar corretoras |
 | GET | `/corretoras/cnpj/{cnpj}` | Buscar por CNPJ |
@@ -161,15 +180,16 @@ O schema é versionado pelo **Liquibase**. O changelog inicial possui 9 changese
 Após a primeira execução:
 ```text
 Run: 0
-Previously run: 9
+Previously run: 11
 Database is up to date, no changesets to execute
 ```
 
 ## Como executar
 
 ### Docker Compose
+Copie `.env.example` para `.env` e preencha as variáveis obrigatórias antes de iniciar os serviços.
+
 ```bash
-cp .env.example .env
 docker compose up -d --build
 docker compose ps
 ```

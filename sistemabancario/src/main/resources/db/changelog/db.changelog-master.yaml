@@ -5,3 +5,6 @@ databaseChangeLog:
   - include:
       file: changes/002-add-perfil-acesso-usuarios.yaml
       relativeToChangelogFile: true
+  - include:
+      file: changes/003-controle-perfis-acesso.yaml
+      relativeToChangelogFile: true

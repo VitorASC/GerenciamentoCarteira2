@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
+import com.projeto.sistemabancario.repository.UsuarioRepository;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -27,9 +28,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
 	private final JwtService jwtService;
+	private final UsuarioRepository usuarioRepository;
 
-	public JwtAuthenticationFilter(JwtService jwtService) {
+	public JwtAuthenticationFilter(JwtService jwtService, UsuarioRepository usuarioRepository) {
 		this.jwtService = jwtService;
+		this.usuarioRepository = usuarioRepository;
 	}
 
 	@Override
@@ -45,29 +48,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			filterChain.doFilter(request, response);
 			return;
 		}
-		try {
-			Claims claims = jwtService.parseClaims(token);
-			Long usuarioId = Long.parseLong(claims.getSubject());
-			String email = claims.get("email", String.class);
-			Boolean ativo = claims.get("ativo", Boolean.class);
-			String perfilAcessoClaim = claims.get("perfilAcesso", String.class);
-			PerfilAcesso perfilAcesso = perfilAcessoClaim != null
-					? PerfilAcesso.valueOf(perfilAcessoClaim)
-					: PerfilAcesso.PADRAO;
-			boolean ativoFlag = ativo == null || ativo;
-			if (!ativoFlag) {
-				filterChain.doFilter(request, response);
-				return;
-			}
-			UsuarioPrincipal principal = UsuarioPrincipal.fromJwt(
-					usuarioId, email != null ? email : "", ativoFlag, perfilAcesso);
+		UsuarioPrincipal principal = autenticar(token);
+		if (principal != null) {
 			var authentication = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
 			authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 			SecurityContextHolder.getContext().setAuthentication(authentication);
 		}
-		catch (JwtException | IllegalArgumentException ex) {
-			log.debug("Token JWT inválido ou expirado: {}", ex.getMessage());
-		}
 		filterChain.doFilter(request, response);
+	}
+
+	private UsuarioPrincipal autenticar(String token) {
+		try {
+			Claims claims = jwtService.parseClaims(token);
+			Long usuarioId = Long.parseLong(claims.getSubject());
+			PerfilAcesso perfilToken = PerfilAcesso.valueOf(claims.get("perfilAcesso", String.class));
+			if (!Boolean.TRUE.equals(claims.get("ativo", Boolean.class))) {
+				return null;
+			}
+			var usuario = usuarioRepository.findById(usuarioId).orElse(null);
+			if (usuario == null || !usuario.getEstadoUsuario().isContaHabilitada()) {
+				return null;
+			}
+			PerfilAcesso perfilEfetivo = usuario.getPerfilAcesso() == perfilToken ? perfilToken : PerfilAcesso.PADRAO;
+			return UsuarioPrincipal.fromJwt(usuarioId, usuario.getEmail(), true, perfilEfetivo);
+		}
+		catch (JwtException | IllegalArgumentException ex) {
+			log.debug("Token JWT inválido ou expirado");
+			return null;
+		}
 	}
 }

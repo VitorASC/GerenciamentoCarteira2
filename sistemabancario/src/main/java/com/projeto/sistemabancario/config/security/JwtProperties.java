@@ -10,6 +10,7 @@ public class JwtProperties {
 	 */
 	private String secret = "";
 
+	private String issuer = "gestaoativa";
 	private long expirationMs = 86_400_000L;
 
 	public String getSecret() {
@@ -22,6 +23,14 @@ public class JwtProperties {
 
 	public long getExpirationMs() {
 		return expirationMs;
+	}
+
+	public String getIssuer() {
+		return issuer;
+	}
+
+	public void setIssuer(String issuer) {
+		this.issuer = issuer;
 	}
 
 	public void setExpirationMs(long expirationMs) {

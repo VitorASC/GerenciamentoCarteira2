@@ -67,8 +67,8 @@ public class SecurityConfig {
 			auth.requestMatchers(HttpMethod.GET, frontend).permitAll();
 			auth.requestMatchers(HttpMethod.HEAD, frontend).permitAll();
 
-			auth.requestMatchers(HttpMethod.GET, "/usuarios").hasRole("ADMIN");
-			auth.requestMatchers(HttpMethod.HEAD, "/usuarios").hasRole("ADMIN");
+			auth.requestMatchers(HttpMethod.GET, "/usuarios", "/auditoria-seguranca").hasRole("ADMIN");
+			auth.requestMatchers(HttpMethod.HEAD, "/usuarios", "/auditoria-seguranca").hasRole("ADMIN");
 			auth.requestMatchers(HttpMethod.PUT, "/usuarios/{id:[0-9]+}/perfil-acesso",
 					"/acoes/{id:[0-9]+}/atualizar-cotacao").hasRole("ADMIN");
 			auth.requestMatchers(HttpMethod.POST, "/acoes", "/corretoras").hasRole("ADMIN");

@@ -132,6 +132,8 @@ Importe o contrato de segurança no Swagger Editor ou em outra ferramenta OpenAP
 
 [Contrato OpenAPI](docs/seguranca.openapi.yaml) · [Coleção Postman](docs/seguranca.postman_collection.json)
 
+A política de tentativas, a consulta administrativa e a matriz de ameaças estão na [documentação da Aula 17](docs/aula-17-auditoria.md).
+
 ## Funcionalidades
 
 ### Corretoras

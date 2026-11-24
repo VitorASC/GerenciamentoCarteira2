@@ -21,7 +21,7 @@ public abstract class CenarioSessaoHttp {
 	@Autowired
 	protected ObjectMapper mapper;
 
-	private final String senha = UUID.randomUUID().toString();
+	protected final String senha = UUID.randomUUID().toString();
 
 	protected String cadastrar(String cpf) throws Exception {
 		String email = UUID.randomUUID() + "@example.test";

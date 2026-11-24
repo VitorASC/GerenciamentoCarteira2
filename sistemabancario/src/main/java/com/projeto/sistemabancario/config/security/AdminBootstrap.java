@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.projeto.sistemabancario.domains.entity.Usuario;
 import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
+import com.projeto.sistemabancario.domains.enums.TipoEventoSeguranca;
+import com.projeto.sistemabancario.service.AuditoriaSegurancaService;
 import com.projeto.sistemabancario.domains.enums.PerfilInvestidor;
 import com.projeto.sistemabancario.dto.request.UsuarioCadastroRequest;
 import com.projeto.sistemabancario.repository.UsuarioRepository;
@@ -27,13 +29,15 @@ public class AdminBootstrap implements ApplicationRunner {
 	private final UsuarioRepository usuarioRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final Validator validator;
+	private final AuditoriaSegurancaService auditoria;
 	private final String email;
 	private final String cpf;
 	private final String senha;
 
 	public AdminBootstrap(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, Validator validator,
 			@Value("${app.admin.bootstrap.email}") String email, @Value("${app.admin.bootstrap.cpf}") String cpf,
-			@Value("${app.admin.bootstrap.password}") String senha) {
+			@Value("${app.admin.bootstrap.password}") String senha, AuditoriaSegurancaService auditoria) {
+		this.auditoria = auditoria;
 		this.usuarioRepository = usuarioRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.validator = validator;
@@ -69,5 +73,6 @@ public class AdminBootstrap implements ApplicationRunner {
 		usuario.setPerfilAcesso(PerfilAcesso.ADMIN);
 		usuario.setDataCriacao(LocalDateTime.now());
 		usuarioRepository.save(usuario);
+		auditoria.registrar(TipoEventoSeguranca.ADMIN_BOOTSTRAP_CRIADO, null, usuario.getId(), null, null);
 	}
 }

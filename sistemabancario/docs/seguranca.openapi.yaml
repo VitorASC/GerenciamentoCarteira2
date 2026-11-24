@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Segurança da API GestãoAtiva
-  version: "1.1"
-  description: Autenticação, autorização e ciclo de sessões do GestãoAtiva.
+  version: "1.2"
+  description: Autenticação, autorização, ciclo de sessões e auditoria de segurança do GestãoAtiva.
 servers:
   - url: http://localhost:8080
 security:
@@ -11,6 +11,7 @@ paths:
   /auth/login:
     post:
       summary: Iniciar uma família de sessão e emitir o par de tokens
+      description: Falhas por e-mail normalizado podem ativar um bloqueio temporário. Todas as recusas de credenciais usam a mesma resposta.
       security: []
       requestBody:
         required: true
@@ -71,6 +72,44 @@ paths:
           description: Sessões encerradas
         '401':
           $ref: '#/components/responses/NaoAutenticado'
+  /auditoria-seguranca:
+    get:
+      summary: Consultar eventos de segurança como ADMIN
+      description: Ordem fixa por instante e ID decrescentes. Os filtros podem ser combinados.
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 0, default: 0 } }
+        - { in: query, name: size, schema: { type: integer, minimum: 1, maximum: 2000, default: 20 } }
+        - in: query
+          name: tipo
+          schema:
+            $ref: '#/components/schemas/TipoEventoSeguranca'
+        - { in: query, name: inicio, description: Instante inclusivo, schema: { type: string, format: date-time } }
+        - { in: query, name: fim, description: Instante exclusivo, schema: { type: string, format: date-time } }
+        - { in: query, name: ator, schema: { type: integer, format: int64 } }
+        - { in: query, name: alvo, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: Página de eventos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, number, size, totalElements, totalPages]
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EventoSeguranca'
+                  number: { type: integer }
+                  size: { type: integer }
+                  totalElements: { type: integer, format: int64 }
+                  totalPages: { type: integer }
+        '400':
+          description: Tipo, período ou identificador inválido
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/AcessoNegado'
   /usuarios:
     post:
       summary: Cadastrar uma conta PADRAO
@@ -322,6 +361,25 @@ components:
     Integracao:
       description: Falha em integração externa
   schemas:
+    TipoEventoSeguranca:
+      type: string
+      enum: [LOGIN_SUCESSO, LOGIN_FALHA, BLOQUEIO_TEMPORARIO_ATIVADO, LOGIN_RECUSADO_BLOQUEIO, REFRESH_SUCESSO, REFRESH_FALHA, LOGOUT, LOGOUT_GLOBAL, PERFIL_ALTERADO, USUARIO_ATIVADO, USUARIO_INATIVADO, EMAIL_ALTERADO, ADMIN_BOOTSTRAP_CRIADO]
+    EventoSeguranca:
+      type: object
+      additionalProperties: false
+      required: [id, tipo, ocorridoEm]
+      properties:
+        id: { type: integer, format: int64 }
+        tipo:
+          $ref: '#/components/schemas/TipoEventoSeguranca'
+        ocorridoEm: { type: string, format: date-time }
+        atorUsuarioId: { type: integer, format: int64, nullable: true }
+        alvoUsuarioId: { type: integer, format: int64, nullable: true }
+        enderecoOrigem: { type: string, maxLength: 45, nullable: true }
+        motivoRevogacao:
+          type: string
+          nullable: true
+          enum: [LOGOUT, LOGOUT_GLOBAL, INATIVIDADE, EXPIRACAO_ABSOLUTA, REUTILIZACAO, USUARIO_INATIVO, null]
     PerfilAcesso:
       type: string
       enum: [PADRAO, ADMIN]

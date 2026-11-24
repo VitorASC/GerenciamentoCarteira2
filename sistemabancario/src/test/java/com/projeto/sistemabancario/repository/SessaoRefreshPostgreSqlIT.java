@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
@@ -21,6 +23,7 @@ import liquibase.integration.spring.SpringLiquibase;
 
 import com.projeto.sistemabancario.AmbienteDeTeste;
 import com.projeto.sistemabancario.web.CenarioSessaoHttp;
+import com.projeto.sistemabancario.util.HashSha256;
 
 @AmbienteDeTeste
 @SpringBootTest
@@ -38,7 +41,8 @@ class SessaoRefreshPostgreSqlIT extends CenarioSessaoHttp {
 	void segundaExecucaoPreservaOsChangesetsNoPostgreSql() throws Exception {
 		var historico = "select id, dateexecuted, md5sum from databasechangelog order by orderexecuted";
 		var antes = jdbc.queryForList(historico);
-		assertThat(antes).extracting(linha -> linha.get("id")).containsOnlyOnce("004-01-sessoes-refresh-token");
+		assertThat(antes).extracting(linha -> linha.get("id"))
+				.containsOnlyOnce("004-01-sessoes-refresh-token", "005-01-auditoria-autenticacao");
 		liquibase.afterPropertiesSet();
 		assertThat(jdbc.queryForList(historico)).isEqualTo(antes);
 		assertThat(jdbc.queryForObject("select locked from databasechangeloglock where id = 1", Boolean.class)).isFalse();
@@ -82,6 +86,64 @@ class SessaoRefreshPostgreSqlIT extends CenarioSessaoHttp {
 				select count(*) from sessoes_refresh_token s join usuarios u on u.id = s.usuario_id
 				where u.email = ? and s.revogada_em is null
 				""", Integer.class, email)).isZero();
+	}
+
+	@Test
+	void duasPrimeirasFalhasConcorrentesCriamUmaLinhaEDuasFalhasSobreTresAtivamUmBloqueio() throws Exception {
+		String email = UUID.randomUUID() + "@example.test";
+		String chave = HashSha256.calcular(email);
+		Callable<ResultActions> falhar = () -> enviar("/auth/login", Map.of("email", email, "senha", senha));
+		for (var resposta : simultaneas(falhar, falhar)) {
+			assertThat(resposta.andReturn().getResponse().getStatus()).isEqualTo(401);
+		}
+		assertThat(falhas(chave)).isEqualTo(2);
+		assertThat(falhar.call().andReturn().getResponse().getStatus()).isEqualTo(401);
+		assertThat(falhas(chave)).isEqualTo(3);
+		for (var resposta : falhasComContencao(chave, falhar)) {
+			assertThat(resposta.andReturn().getResponse().getStatus()).isEqualTo(401);
+		}
+		assertThat(falhas(chave)).isEqualTo(5);
+		assertThat(jdbc.queryForList("select tipo from eventos_seguranca where identificador_hash = ?", String.class, chave))
+				.containsExactlyInAnyOrder("LOGIN_FALHA", "LOGIN_FALHA", "LOGIN_FALHA", "LOGIN_FALHA",
+						"LOGIN_FALHA", "BLOQUEIO_TEMPORARIO_ATIVADO");
+	}
+
+	private int falhas(String chave) {
+		return jdbc.queryForObject("select falhas_consecutivas from protecao_autenticacao where chave_login = ?",
+				Integer.class, chave);
+	}
+
+	private List<ResultActions> falhasComContencao(String chave, Callable<ResultActions> falhar) throws Exception {
+		var executor = Executors.newFixedThreadPool(2);
+		try (var conexao = jdbc.getDataSource().getConnection()) {
+			conexao.setAutoCommit(false);
+			try (var consulta = conexao.prepareStatement(
+					"select chave_login from protecao_autenticacao where chave_login = ? for update")) {
+				consulta.setString(1, chave);
+				try (var linha = consulta.executeQuery()) {
+					assertThat(linha.next()).isTrue();
+				}
+				var primeira = executor.submit(falhar);
+				var segunda = executor.submit(falhar);
+				long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+				int aguardando;
+				do {
+					aguardando = jdbc.queryForObject("""
+							select count(*) from pg_stat_activity where datname = current_database()
+							and wait_event_type = 'Lock' and query like '%protecao_autenticacao%'
+							""", Integer.class);
+				} while (aguardando < 2 && System.nanoTime() < limite);
+				assertThat(aguardando).as("as duas transações chegaram ao lock da proteção").isEqualTo(2);
+				conexao.commit();
+				return List.of(primeira.get(30, TimeUnit.SECONDS), segunda.get(30, TimeUnit.SECONDS));
+			}
+			finally {
+				conexao.rollback();
+			}
+		}
+		finally {
+			executor.shutdownNow();
+		}
 	}
 
 	private List<ResultActions> simultaneas(Callable<ResultActions> a, Callable<ResultActions> b) throws Exception {

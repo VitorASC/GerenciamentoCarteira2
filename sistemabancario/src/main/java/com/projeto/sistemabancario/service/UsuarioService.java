@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.projeto.sistemabancario.config.security.UsuarioPrincipal;
 import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
+import com.projeto.sistemabancario.domains.enums.TipoEventoSeguranca;
 import com.projeto.sistemabancario.dto.request.UsuarioAtualizacaoRequest;
 import com.projeto.sistemabancario.dto.request.UsuarioCadastroRequest;
 import com.projeto.sistemabancario.dto.response.UsuarioResponse;
@@ -31,8 +32,10 @@ public class UsuarioService {
 
 	private final UsuarioRepository usuarioRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final AuditoriaSegurancaService auditoria;
 
-	public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+	public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, AuditoriaSegurancaService auditoria) {
+		this.auditoria = auditoria;
 		this.usuarioRepository = usuarioRepository;
 		this.passwordEncoder = passwordEncoder;
 	}
@@ -109,8 +112,11 @@ public class UsuarioService {
 		}
 		if (request.email() != null && !request.email().isBlank()) {
 			String email = request.email().trim().toLowerCase(Locale.ROOT);
-			if (!email.equalsIgnoreCase(u.getEmail()) && usuarioRepository.existsByEmailIgnoreCase(email)) {
-				throw new DuplicateResourceException("Já existe usuário com este e-mail.");
+			if (!email.equalsIgnoreCase(u.getEmail())) {
+				if (usuarioRepository.existsByEmailIgnoreCase(email)) {
+					throw new DuplicateResourceException("Já existe usuário com este e-mail.");
+				}
+				auditoria.registrar(TipoEventoSeguranca.EMAIL_ALTERADO, autor.getId(), id, null, null);
 			}
 			u.setEmail(email);
 		}
@@ -120,6 +126,10 @@ public class UsuarioService {
 		if (request.ativo() != null) {
 			if (Boolean.FALSE.equals(request.ativo())) {
 				preservarAdministradorAtivo(u);
+			}
+			if (!request.ativo().equals(u.getAtivo())) {
+				var tipo = request.ativo() ? TipoEventoSeguranca.USUARIO_ATIVADO : TipoEventoSeguranca.USUARIO_INATIVADO;
+				auditoria.registrar(tipo, autor.getId(), id, null, null);
 			}
 			u.setEstadoUsuario(Boolean.TRUE.equals(request.ativo())
 					? EstadoUsuarioAtivo.INSTANCE
@@ -144,7 +154,10 @@ public class UsuarioService {
 		if (perfilAcesso == PerfilAcesso.PADRAO) {
 			preservarAdministradorAtivo(alvo);
 		}
-		alvo.setPerfilAcesso(perfilAcesso);
+		if (alvo.getPerfilAcesso() != perfilAcesso) {
+			alvo.setPerfilAcesso(perfilAcesso);
+			auditoria.registrar(TipoEventoSeguranca.PERFIL_ALTERADO, autor.getId(), id, null, null);
+		}
 		return toResponse(usuarioRepository.save(alvo));
 	}
 

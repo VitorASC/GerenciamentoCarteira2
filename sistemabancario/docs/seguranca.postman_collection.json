@@ -10,6 +10,10 @@
       "value": "http://localhost:8080"
     },
     {
+      "key": "senha_invalida",
+      "value": ""
+    },
+    {
       "key": "usuario_alvo_id",
       "value": ""
     },
@@ -924,6 +928,165 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"Perfil atualizado\", () => pm.expect(pm.response.json().perfilAcesso).to.eql(\"PADRAO\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Proteção e auditoria",
+      "description": "Use contas descartáveis. Primeiro faça login como PADRAO e ADMIN para guardar os dois Bearers. Configure senha_invalida localmente com uma senha diferente da correta e execute a primeira requisição até o limite configurado (padrão 5). Em seguida execute as demais dentro do prazo de bloqueio.",
+      "item": [
+        {
+          "name": "Repetir login inválido até atingir o limite",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{base_url}}/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_padrao}}\",\n  \"senha\": \"{{senha_invalida}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Mensagem genérica\", () => pm.expect(pm.response.json().mensagem).to.eql(\"E-mail ou senha inválidos.\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Senha correta durante o bloqueio",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{base_url}}/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_padrao}}\",\n  \"senha\": \"{{senha_padrao}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Mensagem genérica\", () => pm.expect(pm.response.json().mensagem).to.eql(\"E-mail ou senha inválidos.\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auditoria como PADRAO",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_padrao}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{base_url}}/auditoria-seguranca?page=0&size=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auditoria como ADMIN",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{base_url}}/auditoria-seguranca?page=0&size=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar falhas de login como ADMIN",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{base_url}}/auditoria-seguranca?page=0&size=10&tipo=LOGIN_FALHA"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"A página contém falhas de login\", () => {",
+                  "    const itens = pm.response.json().content;",
+                  "    pm.expect(itens).to.have.length.greaterThan(0);",
+                  "    itens.forEach(item => pm.expect(item.tipo).to.eql(\"LOGIN_FALHA\"));",
+                  "});"
                 ]
               }
             }

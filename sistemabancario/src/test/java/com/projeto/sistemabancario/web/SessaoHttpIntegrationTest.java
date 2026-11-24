@@ -11,6 +11,7 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -73,6 +74,11 @@ class SessaoHttpIntegrationTest extends CenarioSessaoHttp {
 		assertThat(familia(outraFamilia)).isNotEqualTo(familia);
 
 		verificarRecusa(renovar(primeiro));
+		assertThat(eventosDoTitular()).contains("REFRESH_SUCESSO", "REFRESH_FALHA");
+		assertThat(jdbc.queryForObject("""
+				select count(*) from eventos_seguranca where tipo = 'REFRESH_FALHA' and motivo_revogacao = 'REUTILIZACAO'
+				and alvo_usuario_id = (select id from usuarios where email = ?)
+				""", Integer.class, email)).isOne();
 		verificarRecusa(renovar(terceiro));
 		assertThat(jdbc.queryForList("select motivo_revogacao from sessoes_refresh_token where familia_id = ?", String.class, familia))
 				.containsExactly("REUTILIZACAO", "REUTILIZACAO", "REUTILIZACAO");
@@ -122,6 +128,7 @@ class SessaoHttpIntegrationTest extends CenarioSessaoHttp {
 		enviar("/auth/logout", Map.of("refreshToken", atual.get("refreshToken").asText())).andExpect(status().isNoContent());
 		verificarRecusa(renovar(atual));
 		verificarMotivo(email, "LOGOUT", 2);
+		assertThat(eventosDoTitular()).containsOnlyOnce("LOGOUT");
 		par(renovar(outra));
 		String bearer = "Bearer " + atual.get("accessToken").asText();
 		when(clock.instant()).thenReturn(INICIO.plusSeconds(899));
@@ -142,6 +149,7 @@ class SessaoHttpIntegrationTest extends CenarioSessaoHttp {
 		verificarRecusa(renovar(primeira));
 		verificarRecusa(renovar(segunda));
 		verificarMotivo(email, "LOGOUT_GLOBAL", 2);
+		assertThat(eventosDoTitular()).containsOnlyOnce("LOGOUT_GLOBAL");
 		par(renovar(alheia));
 	}
 
@@ -166,6 +174,12 @@ class SessaoHttpIntegrationTest extends CenarioSessaoHttp {
 
 	private UUID familia(JsonNode par) {
 		return UUID.fromString(jwt.parseClaims(par.get("accessToken").asText()).get("sid", String.class));
+	}
+
+	private List<String> eventosDoTitular() {
+		return jdbc.queryForList("""
+				select tipo from eventos_seguranca where alvo_usuario_id = (select id from usuarios where email = ?)
+				""", String.class, email);
 	}
 
 	private void verificarMotivo(String titular, String motivo, int quantidade) {

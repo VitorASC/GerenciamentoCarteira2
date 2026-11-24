@@ -18,7 +18,7 @@ public class UsuarioUserDetailsService implements UserDetailsService {
 
 	@Override
 	public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-		return usuarioRepository.findByEmailIgnoreCase(username.trim())
+		return usuarioRepository.bloquearPorEmail(username.trim())
 			.map(UsuarioPrincipal::fromEntity)
 			.orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado."));
 	}

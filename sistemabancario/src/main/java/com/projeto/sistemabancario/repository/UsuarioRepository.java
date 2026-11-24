@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.LockModeType;
 
@@ -20,6 +21,11 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 	Optional<Usuario> findByCpf(String cpf);
 
 	Optional<Usuario> findByEmailIgnoreCase(String email);
+
+	@Transactional
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select u from Usuario u where lower(u.email) = lower(:email)")
+	Optional<Usuario> bloquearPorEmail(String email);
 
 	boolean existsByCpf(String cpf);
 

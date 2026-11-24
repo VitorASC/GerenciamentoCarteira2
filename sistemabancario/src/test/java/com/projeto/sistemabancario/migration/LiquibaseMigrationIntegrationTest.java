@@ -28,7 +28,7 @@ class LiquibaseMigrationIntegrationTest {
 			"TRANSACOES",
 			"HISTORICO_COTACOES",
 			"CONTROLE_PERFIS_ACESSO",
-			"SESSOES_REFRESH_TOKEN");
+			"SESSOES_REFRESH_TOKEN", "PROTECAO_AUTENTICACAO", "EVENTOS_SEGURANCA");
 
 	private static final Set<String> CHANGESET_IDS = Set.of(
 			"001-01-create-usuarios",
@@ -42,7 +42,8 @@ class LiquibaseMigrationIntegrationTest {
 			"001-09-add-foreign-keys",
 			"002-01-add-perfil-acesso-usuarios",
 			"003-01-controle-perfis-acesso",
-			"004-01-sessoes-refresh-token");
+			"004-01-sessoes-refresh-token",
+			"005-01-auditoria-autenticacao");
 
 	@Autowired
 	private DataSource dataSource;

@@ -7,4 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 
 @JsonIgnoreProperties("perfilAcesso")
 public record LoginRequest(@NotBlank @Email String email, @NotBlank String senha) {
+	public LoginRequest {
+		email = email == null ? null : email.trim();
+	}
 }

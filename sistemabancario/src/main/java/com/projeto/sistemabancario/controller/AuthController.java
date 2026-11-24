@@ -4,8 +4,7 @@ import java.time.OffsetDateTime;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +18,7 @@ import com.projeto.sistemabancario.dto.request.RefreshTokenRequest;
 import com.projeto.sistemabancario.dto.response.ErroResponse;
 import com.projeto.sistemabancario.dto.response.LoginResponse;
 import com.projeto.sistemabancario.service.SessaoService;
+import com.projeto.sistemabancario.service.LoginService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -27,20 +27,17 @@ import jakarta.validation.Valid;
 @RequestMapping("/auth")
 public class AuthController {
 
-	private final AuthenticationManager authenticationManager;
+	private final LoginService loginService;
 	private final SessaoService sessoes;
 
-	public AuthController(AuthenticationManager authenticationManager, SessaoService sessoes) {
-		this.authenticationManager = authenticationManager;
+	public AuthController(LoginService loginService, SessaoService sessoes) {
+		this.loginService = loginService;
 		this.sessoes = sessoes;
 	}
 
 	@PostMapping("/login")
 	public LoginResponse login(@Valid @RequestBody LoginRequest request) {
-		var auth = authenticationManager.authenticate(
-				new UsernamePasswordAuthenticationToken(request.email().trim(), request.senha()));
-		var principal = (UsuarioPrincipal) auth.getPrincipal();
-		return sessoes.iniciar(principal.getUsuarioId());
+		return loginService.tentar(request).orElseThrow(() -> new BadCredentialsException("Credenciais inválidas"));
 	}
 
 	@PostMapping("/refresh")

@@ -27,7 +27,7 @@ public interface SessaoRefreshTokenRepository extends JpaRepository<SessaoRefres
 			update SessaoRefreshToken s set s.revogadaEm = :agora, s.motivoRevogacao = :motivo
 			where s.familiaId = :familia and s.revogadaEm is null
 			""")
-	void revogarFamilia(UUID familia, Instant agora, MotivoRevogacao motivo);
+	int revogarFamilia(UUID familia, Instant agora, MotivoRevogacao motivo);
 
 	@Modifying
 	@Query("""

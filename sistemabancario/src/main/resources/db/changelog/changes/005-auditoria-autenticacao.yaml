@@ -1,0 +1,60 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-01-auditoria-autenticacao
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: protecao_autenticacao
+            columns:
+              - column:
+                  name: chave_login
+                  type: varchar(64)
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: falhas_consecutivas
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints: { nullable: false }
+              - column: { name: janela_iniciada_em, type: "${tipoInstanteSessao}" }
+              - column: { name: bloqueada_ate, type: "${tipoInstanteSessao}" }
+        - sql:
+            sql: >
+              ALTER TABLE protecao_autenticacao ADD CONSTRAINT ck_protecao_estado CHECK (
+                char_length(chave_login) = 64 AND
+                ((falhas_consecutivas = 0 AND janela_iniciada_em IS NULL AND bloqueada_ate IS NULL)
+                OR (falhas_consecutivas > 0 AND janela_iniciada_em IS NOT NULL
+                AND (bloqueada_ate IS NULL OR bloqueada_ate >= janela_iniciada_em))))
+        - createTable:
+            tableName: eventos_seguranca
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: tipo
+                  type: varchar(32)
+                  constraints: { nullable: false }
+              - column:
+                  name: ocorrido_em
+                  type: "${tipoInstanteSessao}"
+                  constraints: { nullable: false }
+              - column: { name: ator_usuario_id, type: bigint }
+              - column: { name: alvo_usuario_id, type: bigint }
+              - column: { name: identificador_hash, type: varchar(64) }
+              - column: { name: endereco_origem, type: varchar(45) }
+              - column: { name: motivo_revogacao, type: varchar(24) }
+        - createIndex:
+            tableName: eventos_seguranca
+            indexName: ix_eventos_instante
+            columns:
+              - column: { name: ocorrido_em }
+              - column: { name: id }
+        - createIndex:
+            tableName: eventos_seguranca
+            indexName: ix_eventos_tipo_instante
+            columns:
+              - column: { name: tipo }
+              - column: { name: ocorrido_em }
+              - column: { name: id }

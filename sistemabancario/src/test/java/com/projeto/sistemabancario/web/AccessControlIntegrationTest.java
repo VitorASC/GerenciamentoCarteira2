@@ -196,7 +196,8 @@ class AccessControlIntegrationTest {
 					.content(objectMapper.writeValueAsString(login)))
 					.andExpect(status().isUnauthorized())
 					.andExpect(jsonPath("$.erro").value("Credenciais inválidas"))
-					.andExpect(jsonPath("$.mensagem").value("E-mail ou senha inválidos."));
+					.andExpect(jsonPath("$.mensagem").value(
+							"E-mail ou senha inválidos. Se houver muitas tentativas consecutivas, aguarde alguns minutos antes de tentar novamente."));
 		}
 	}
 

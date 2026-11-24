@@ -156,7 +156,8 @@ class AuditoriaSegurancaHttpTest extends CenarioSessaoHttp {
 	private void recusaLogin(String identificador, String credencial) throws Exception {
 		enviar("/auth/login", Map.of("email", identificador, "senha", credencial))
 				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.erro").value("Credenciais inválidas"))
-				.andExpect(jsonPath("$.mensagem").value("E-mail ou senha inválidos."));
+				.andExpect(jsonPath("$.mensagem").value(
+						"E-mail ou senha inválidos. Se houver muitas tentativas consecutivas, aguarde alguns minutos antes de tentar novamente."));
 	}
 
 	private Long id(String titular) {

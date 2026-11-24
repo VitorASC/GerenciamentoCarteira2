@@ -31,7 +31,9 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(AuthenticationException.class)
 	public ResponseEntity<ErroResponse> autenticacao(AuthenticationException ex, HttpServletRequest req) {
-		return montar(HttpStatus.UNAUTHORIZED, "Credenciais inválidas", "E-mail ou senha inválidos.", req);
+		return montar(HttpStatus.UNAUTHORIZED, "Credenciais inválidas",
+				"E-mail ou senha inválidos. Se houver muitas tentativas consecutivas, aguarde alguns minutos antes de tentar novamente.",
+				req);
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)

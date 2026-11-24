@@ -29,7 +29,7 @@ paths:
         '400':
           $ref: '#/components/responses/DadosInvalidos'
         '401':
-          description: E-mail ou senha inválidos.
+          description: E-mail ou senha inválidos. Se houver muitas tentativas consecutivas, aguarde alguns minutos antes de tentar novamente.
           content:
             application/json:
               schema:

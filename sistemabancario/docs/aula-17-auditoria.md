@@ -12,7 +12,7 @@ A escolha é conservadora e didática. Uma implantação real exigiria ajustar o
 
 O serviço aplica `trim`, minúsculas com `Locale.ROOT` e SHA-256 sobre os bytes UTF-8. Os 64 dígitos hexadecimais minúsculos formam a chave primária de `protecao_autenticacao`. A tabela contém apenas essa chave, o contador, o início da janela e o vencimento do bloqueio. E-mails previsíveis podem ser correlacionados por quem obtiver acesso ao banco. O hash é um pseudônimo.
 
-A quinta falha dentro da janela inicia o bloqueio. Uma tentativa durante o bloqueio dispensa o BCrypt e preserva o vencimento. No instante exato do vencimento, a próxima tentativa é permitida. Uma nova falha depois do vencimento ou no limite da janela inicia outra contagem. Um login válido zera o contador e limpa os dois instantes. Senha incorreta, conta inexistente, conta inativa e bloqueio produzem o mesmo HTTP 401 com a mensagem `E-mail ou senha inválidos.`.
+A quinta falha dentro da janela inicia o bloqueio. Uma tentativa durante o bloqueio dispensa o BCrypt e preserva o vencimento. No instante exato do vencimento, a próxima tentativa é permitida. Uma nova falha depois do vencimento ou no limite da janela inicia outra contagem. Um login válido zera o contador e limpa os dois instantes. Senha incorreta, conta inexistente, conta inativa e bloqueio produzem o mesmo HTTP 401 com a mensagem `E-mail ou senha inválidos. Se houver muitas tentativas consecutivas, aguarde alguns minutos antes de tentar novamente.`.
 
 ## Concorrência e transações
 

@@ -3,17 +3,15 @@ package com.projeto.sistemabancario.util;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class DocumentosTest {
 
-	@Test
-	void aceitaCnpjValidoSemMascara() {
-		assertThat(Documentos.cnpjValido("11222333000181")).isTrue();
-	}
-
-	@Test
-	void aceitaMesmoCnpjValidoFormatado() {
-		assertThat(Documentos.cnpjValido("11.222.333/0001-81")).isTrue();
+	@ParameterizedTest
+	@ValueSource(strings = {"11222333000181", "11.222.333/0001-81"})
+	void aceitaCnpjValidoComOuSemMascara(String cnpj) {
+		assertThat(Documentos.cnpjValido(cnpj)).isTrue();
 	}
 
 	@Test

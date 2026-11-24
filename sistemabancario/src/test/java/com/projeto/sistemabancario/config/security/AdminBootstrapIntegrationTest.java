@@ -26,12 +26,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.projeto.sistemabancario.AmbienteDeTeste;
 import com.projeto.sistemabancario.domains.entity.Usuario;
 import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
 import com.projeto.sistemabancario.domains.enums.PerfilInvestidor;
 import com.projeto.sistemabancario.repository.UsuarioRepository;
 import com.projeto.sistemabancario.service.UsuarioService;
 
+@AmbienteDeTeste
 @SpringBootTest(properties = {
 		"spring.datasource.url=jdbc:h2:mem:test_admin_bootstrap",
 		"app.admin.bootstrap.enabled=true",

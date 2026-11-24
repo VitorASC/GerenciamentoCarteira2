@@ -227,24 +227,26 @@ Linux/macOS:
 ## Testes
 
 ```bash
-mvn test
+mvn test           # Suíte sem Docker
+mvn clean verify   # Suíte completa, relatório e verificação de cobertura
 ```
 
-Último resultado:
-```text
-Tests run: 48
-Failures: 0
-Errors: 0
-Skipped: 0
-BUILD SUCCESS
-```
+A suíte cobre domínio e serviços com JUnit e Mockito, aplicação, persistência e
+migrations com H2 em memória, HTTP e autorização com MockMvc e integrações
+externas com MockWebServer e dublês de teste.
 
-Build completo:
-```bash
-mvn clean package
-```
+Para `verify`, use Java 17 e mantenha o Docker disponível. O Maven Failsafe
+executa `PosicaoCarteiraPostgreSqlIT` em um PostgreSQL 17 temporário com
+Testcontainers. O Liquibase aplica o changelog, o Hibernate valida o schema e
+o teste verifica a precisão e a unicidade da posição por carteira e ação.
+O container é gerenciado pela suíte, com uma senha efêmera gerada para o teste.
 
-Também foram validados manualmente autenticação, sessão expirada, CNPJ, CEP, CVM, ações, histórico, compra sem saldo, preço médio, venda parcial, recompra, venda total, Dashboard, temas, persistência Docker/PostgreSQL e Liquibase após restart.
+O relatório HTML é gerado em
+[`target/site/jacoco/index.html`](target/site/jacoco/index.html)
+a partir deste módulo. O JaCoCo verifica o módulo em `verify` e falha
+se a cobertura ficar abaixo de **70% de linhas** ou **40% de branches**.
+A suíte original atingiu **71,93% de linhas** e **52,48% de branches**,
+o que sustenta os limites da Aula 15.
 
 ## Estrutura do repositório
 

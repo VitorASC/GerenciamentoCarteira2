@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.test.context.support.WithMockUser;
 
+import com.projeto.sistemabancario.AmbienteDeTeste;
 import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
 import com.projeto.sistemabancario.exception.ResourceNotFoundException;
 import com.projeto.sistemabancario.repository.UsuarioRepository;
@@ -18,6 +19,7 @@ import com.projeto.sistemabancario.service.AcaoService;
 import com.projeto.sistemabancario.service.CorretoraService;
 import com.projeto.sistemabancario.service.UsuarioService;
 
+@AmbienteDeTeste
 @SpringBootTest
 class MethodSecurityIntegrationTest {
 

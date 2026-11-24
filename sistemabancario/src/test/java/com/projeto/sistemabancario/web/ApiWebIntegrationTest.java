@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.projeto.sistemabancario.AmbienteDeTeste;
 import com.projeto.sistemabancario.config.security.JwtService;
 import com.projeto.sistemabancario.domains.entity.Acao;
 import com.projeto.sistemabancario.domains.entity.HistoricoCotacao;
@@ -33,6 +34,7 @@ import com.projeto.sistemabancario.domains.enums.PerfilInvestidor;
 import com.projeto.sistemabancario.repository.AcaoRepository;
 import com.projeto.sistemabancario.repository.UsuarioRepository;
 
+@AmbienteDeTeste
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional

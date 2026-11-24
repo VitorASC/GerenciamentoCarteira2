@@ -32,6 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.projeto.sistemabancario.AmbienteDeTeste;
 import com.projeto.sistemabancario.config.security.JwtProperties;
 import com.projeto.sistemabancario.config.security.JwtService;
 import com.projeto.sistemabancario.domains.entity.Acao;
@@ -48,6 +49,7 @@ import com.projeto.sistemabancario.service.CorretoraService;
 
 import io.jsonwebtoken.Jwts;
 
+@AmbienteDeTeste
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional

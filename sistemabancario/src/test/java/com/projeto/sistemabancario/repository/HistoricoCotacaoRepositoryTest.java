@@ -10,10 +10,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
 
+import com.projeto.sistemabancario.AmbienteDeTeste;
 import com.projeto.sistemabancario.domains.entity.Acao;
 import com.projeto.sistemabancario.domains.entity.HistoricoCotacao;
 import com.projeto.sistemabancario.domains.enums.Mercado;
 
+@AmbienteDeTeste
 @DataJpaTest
 class HistoricoCotacaoRepositoryTest {
 

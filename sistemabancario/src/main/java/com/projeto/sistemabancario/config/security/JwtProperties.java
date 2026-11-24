@@ -11,7 +11,7 @@ public class JwtProperties {
 	private String secret = "";
 
 	private String issuer = "gestaoativa";
-	private long expirationMs = 86_400_000L;
+	private long expirationMs = 1_800_000L;
 
 	public String getSecret() {
 		return secret;

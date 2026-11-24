@@ -5,9 +5,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 import com.projeto.sistemabancario.config.security.JwtProperties;
+import com.projeto.sistemabancario.config.security.RefreshProperties;
 
 @SpringBootApplication
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, RefreshProperties.class})
 public class SistemabancarioApplication {
 
 	public static void main(String[] args) {

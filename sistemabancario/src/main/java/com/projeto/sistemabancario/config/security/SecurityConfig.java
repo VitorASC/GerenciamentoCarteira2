@@ -1,5 +1,7 @@
 package com.projeto.sistemabancario.config.security;
 
+import java.time.Clock;
+
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,6 +44,11 @@ public class SecurityConfig {
 	}
 
 	@Bean
+	public static Clock clock() {
+		return Clock.systemUTC();
+	}
+
+	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		http.csrf(AbstractHttpConfigurer::disable);
 		http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
@@ -51,7 +58,8 @@ public class SecurityConfig {
 				.accessDeniedHandler(jwtAccessDeniedHandler));
 		http.authorizeHttpRequests(auth -> {
 			auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
-			auth.requestMatchers(HttpMethod.POST, "/usuarios", "/auth/login").permitAll();
+			auth.requestMatchers(HttpMethod.POST, "/usuarios", "/auth/login", "/auth/refresh", "/auth/logout").permitAll();
+			auth.requestMatchers(HttpMethod.POST, "/auth/logout-global").authenticated();
 			if (environment.acceptsProfiles(Profiles.of("dev"))) {
 				auth.requestMatchers("/h2-console", "/h2-console/**").permitAll();
 			}

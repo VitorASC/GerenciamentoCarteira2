@@ -1,0 +1,89 @@
+databaseChangeLog:
+  - property:
+      name: tipoInstanteSessao
+      value: TIMESTAMP(6)
+      dbms: mysql
+  - property:
+      name: tipoInstanteSessao
+      value: TIMESTAMP(6) WITH TIME ZONE
+  - property:
+      name: tipoFamiliaSessao
+      value: BINARY(16)
+      dbms: mysql
+  - property:
+      name: tipoFamiliaSessao
+      value: UUID
+  - changeSet:
+      id: 004-01-sessoes-refresh-token
+      author: equipe-fef
+      changes:
+        - createTable:
+            tableName: sessoes_refresh_token
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+              - column:
+                  name: usuario_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: familia_id
+                  type: ${tipoFamiliaSessao}
+                  constraints:
+                    nullable: false
+              - column:
+                  name: token_hash
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uk_sessoes_refresh_hash
+              - column:
+                  name: criada_em
+                  type: ${tipoInstanteSessao}
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ultima_atividade_em
+                  type: ${tipoInstanteSessao}
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expira_em
+                  type: ${tipoInstanteSessao}
+                  constraints:
+                    nullable: false
+              - column:
+                  name: utilizada_em
+                  type: ${tipoInstanteSessao}
+              - column:
+                  name: revogada_em
+                  type: ${tipoInstanteSessao}
+              - column:
+                  name: motivo_revogacao
+                  type: VARCHAR(24)
+        - addForeignKeyConstraint:
+            constraintName: fk_sessoes_refresh_usuario
+            baseTableName: sessoes_refresh_token
+            baseColumnNames: usuario_id
+            referencedTableName: usuarios
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            tableName: sessoes_refresh_token
+            indexName: ix_sessoes_refresh_usuario_id
+            columns:
+              - column:
+                  name: usuario_id
+        - createIndex:
+            tableName: sessoes_refresh_token
+            indexName: ix_sessoes_refresh_familia_id
+            columns:
+              - column:
+                  name: familia_id

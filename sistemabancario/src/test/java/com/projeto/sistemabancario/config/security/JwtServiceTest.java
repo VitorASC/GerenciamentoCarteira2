@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.spec.SecretKeySpec;
 
@@ -18,12 +21,14 @@ import io.jsonwebtoken.MalformedJwtException;
 
 class JwtServiceTest {
 
+	private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+
 	@Test
 	void gerarEValidarTokenPreservaSubjectEmailEAtivo() {
 		JwtProperties properties = new JwtProperties();
-		properties.setSecret("chave-de-teste-com-pelo-menos-trinta-e-dois-bytes!!");
+		properties.setSecret(UUID.randomUUID().toString());
 		properties.setExpirationMs(120_000L);
-		JwtService jwtService = new JwtService(properties);
+		JwtService jwtService = new JwtService(properties, CLOCK);
 
 		String token = jwtService.gerarToken(99L, "user@test.local", true);
 		var claims = jwtService.parseClaims(token);
@@ -40,20 +45,31 @@ class JwtServiceTest {
 		JwtProperties properties = new JwtProperties();
 		properties.setSecret("curta");
 
-		assertThatThrownBy(() -> new JwtService(properties))
+		assertThatThrownBy(() -> new JwtService(properties, CLOCK))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("APP_SECURITY_JWT_SECRET")
 			.hasMessageContaining("32 bytes");
 	}
 
 	@Test
+	void rejeitaDuracaoDoAccessNulaEmMilissegundosOuNegativa() {
+		JwtProperties properties = new JwtProperties();
+		properties.setSecret(UUID.randomUUID().toString());
+		for (long invalida : new long[]{0, -1}) {
+			properties.setExpirationMs(invalida);
+			assertThatThrownBy(() -> new JwtService(properties, CLOCK)).isInstanceOf(IllegalStateException.class)
+					.hasMessageContaining("EXPIRATION_MS");
+		}
+	}
+
+	@Test
 	void rejeitaTokenAssinadoSemExpiracaoEAssinaturaComOutroAlgoritmo() {
-		String segredo = "chave-de-teste-com-pelo-menos-quarenta-e-oito-bytes-para-jwt";
+		String segredo = UUID.randomUUID().toString() + UUID.randomUUID();
 		JwtProperties properties = new JwtProperties();
 		properties.setSecret(segredo);
-		JwtService jwtService = new JwtService(properties);
+		JwtService jwtService = new JwtService(properties, CLOCK);
 		byte[] bytesChave = segredo.getBytes(StandardCharsets.UTF_8);
-		Instant agora = Instant.now();
+		Instant agora = CLOCK.instant();
 		var token = Jwts.builder().issuer(properties.getIssuer()).subject("99").id("teste")
 				.issuedAt(Date.from(agora)).claim("perfilAcesso", "PADRAO").claim("ativo", true);
 		String semExpiracao = token.signWith(new SecretKeySpec(bytesChave, "HmacSHA256"), Jwts.SIG.HS256).compact();

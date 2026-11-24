@@ -27,7 +27,8 @@ class LiquibaseMigrationIntegrationTest {
 			"POSICOES_CARTEIRA",
 			"TRANSACOES",
 			"HISTORICO_COTACOES",
-			"CONTROLE_PERFIS_ACESSO");
+			"CONTROLE_PERFIS_ACESSO",
+			"SESSOES_REFRESH_TOKEN");
 
 	private static final Set<String> CHANGESET_IDS = Set.of(
 			"001-01-create-usuarios",
@@ -40,7 +41,8 @@ class LiquibaseMigrationIntegrationTest {
 			"001-08-add-unique-constraints",
 			"001-09-add-foreign-keys",
 			"002-01-add-perfil-acesso-usuarios",
-			"003-01-controle-perfis-acesso");
+			"003-01-controle-perfis-acesso",
+			"004-01-sessoes-refresh-token");
 
 	@Autowired
 	private DataSource dataSource;
@@ -56,6 +58,11 @@ class LiquibaseMigrationIntegrationTest {
 				"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'PUBLIC'",
 				String.class));
 		assertThat(tabelas).containsAll(DOMAIN_TABLES);
+		assertThat(jdbc.queryForList("""
+				SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+				WHERE TABLE_SCHEMA = 'PUBLIC' AND TABLE_NAME = 'SESSOES_REFRESH_TOKEN'
+				""", String.class)).containsExactlyInAnyOrder("ID", "USUARIO_ID", "FAMILIA_ID", "TOKEN_HASH",
+						"CRIADA_EM", "ULTIMA_ATIVIDADE_EM", "EXPIRA_EM", "UTILIZADA_EM", "REVOGADA_EM", "MOTIVO_REVOGACAO");
 		assertThat(tabelas).contains("DATABASECHANGELOG", "DATABASECHANGELOGLOCK");
 
 		Set<String> changesets = Set.copyOf(jdbc.queryForList(

@@ -91,9 +91,27 @@ O GestãoAtiva autentica por `POST /auth/login` e protege as rotas da API com Sp
 - `403 Forbidden` indica que a conta autenticada não tem permissão para a operação ou para o recurso.
 - O cadastro público cria contas `PADRAO`. A cadeia HTTP e os serviços restringem a `ADMIN` as operações administrativas de ações, corretoras e usuários.
 - Um `ADMIN` pode usar `PUT /usuarios/{id}/perfil-acesso` com `{"perfilAcesso":"ADMIN"}` ou `{"perfilAcesso":"PADRAO"}` para alterar outra conta. A aplicação preserva pelo menos um administrador ativo.
-- Um usuário promovido deve fazer login novamente para receber um token com `ADMIN`. O rebaixamento retira os privilégios na próxima requisição à API.
+- A promoção passa a valer no próximo JWT emitido por login ou refresh. O rebaixamento retira os privilégios na próxima requisição à API.
 
-Preencha `APP_SECURITY_JWT_SECRET` com pelo menos 32 bytes aleatórios. Use `APP_SECURITY_JWT_ISSUER` para configurar o emissor, cujo padrão é `gestaoativa`. `APP_SECURITY_JWT_EXPIRATION_MS` mantém a validade de 24 horas por padrão. A redução dessa duração fica para a Aula 16, junto com o refresh token. Tokens emitidos antes da mudança de emissor exigem novo login.
+Preencha `APP_SECURITY_JWT_SECRET` com pelo menos 32 bytes aleatórios. O emissor padrão de `APP_SECURITY_JWT_ISSUER` é `gestaoativa`.
+
+### Decisão arquitetural da Aula 16
+
+Cada login cria uma família identificada pelo `sid` do JWT. Login e refresh retornam `accessToken`, `refreshToken`, `tokenType`, `perfilAcesso`, `expiresIn` (segundos) e `expiresInMs` (compatibilidade).
+
+| Limite | Variável de ambiente | Padrão |
+|---|---|---|
+| Validade do JWT | `APP_SECURITY_JWT_EXPIRATION_MS` | 1800000 ms (30 min) |
+| Inatividade desde a emissão do último refresh | `REFRESH_IDLE_TIMEOUT` | `PT30M` |
+| Vida total da família desde o login | `REFRESH_ABSOLUTE_EXPIRATION` | `PT8H` |
+
+Com os padrões de 30 minutos para JWT e inatividade, o cliente deve renovar antes de completar 30 minutos desde a última emissão. Consultas autenticadas com Bearer não reiniciam esse prazo.
+
+Ao atingir qualquer limite do refresh, a família expira. `POST /auth/refresh` recebe `{"refreshToken":"…"}`, consome a geração e emite um novo par com o mesmo limite absoluto. Só o SHA-256 do refresh opaco de 32 bytes é persistido. A rotação permite detectar o uso de uma cópia de um token já consumido. Duas renovações simultâneas disputam um bloqueio no banco. Uma pode consumir o token, e a segunda detecta o replay e revoga inclusive a geração recém-emitida. A resposta é `401` com a mensagem `Refresh token inválido ou expirado`.
+
+`POST /auth/logout` recebe o refresh e encerra sua família. `POST /auth/logout-global` recebe o Bearer e encerra todas as famílias do titular. Ambos retornam `204`. O access token emitido segue válido até seu `exp` após logout. O filtro continua verificando o estado e as permissões da conta. Uma conta inativa também perde a família ao tentar renovar.
+
+O React mantém o access token no `sessionStorage` da aba. Nesta etapa ele descarta o refresh recebido, pede novo login ao expirar o JWT e limpa o armazenamento ao sair. A renovação e os logouts no servidor estão disponíveis para clientes da API e na coleção Postman.
 
 ### Primeiro administrador
 
@@ -154,7 +172,10 @@ Exibe saldo, total investido, valor de mercado, rentabilidade não realizada, lu
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| POST | `/auth/login` | Login |
+| POST | `/auth/login` | Emitir access e refresh token |
+| POST | `/auth/refresh` | Rotacionar o par |
+| POST | `/auth/logout` | Encerrar a família pelo refresh |
+| POST | `/auth/logout-global` | Encerrar todas as famílias pelo Bearer |
 | POST | `/usuarios` | Cadastrar usuário PADRAO |
 | GET | `/usuarios` | Listar usuários como ADMIN |
 | GET | `/usuarios/{id}` | Buscar usuário |
@@ -180,7 +201,7 @@ O schema é versionado pelo **Liquibase**. O changelog inicial possui 9 changese
 Após a primeira execução:
 ```text
 Run: 0
-Previously run: 11
+Previously run: 12
 Database is up to date, no changesets to execute
 ```
 
@@ -236,10 +257,10 @@ migrations com H2 em memória, HTTP e autorização com MockMvc e integrações
 externas com MockWebServer e dublês de teste.
 
 Para `verify`, use Java 17 e mantenha o Docker disponível. O Maven Failsafe
-executa `PosicaoCarteiraPostgreSqlIT` em um PostgreSQL 17 temporário com
-Testcontainers. O Liquibase aplica o changelog, o Hibernate valida o schema e
-o teste verifica a precisão e a unicidade da posição por carteira e ação.
-O container é gerenciado pela suíte, com uma senha efêmera gerada para o teste.
+executa `PosicaoCarteiraPostgreSqlIT` e `SessaoRefreshPostgreSqlIT` em PostgreSQL 17
+com Testcontainers. O Liquibase aplica o changelog e o Hibernate valida o schema.
+Os testes verificam a precisão e a unicidade das posições e o consumo concorrente
+do mesmo refresh. A suíte gerencia os containers e gera suas senhas efêmeras.
 
 O relatório HTML é gerado em
 [`target/site/jacoco/index.html`](target/site/jacoco/index.html)

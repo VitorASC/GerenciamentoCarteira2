@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Segurança da API GestãoAtiva
-  version: "1.0"
-  description: Contrato de autenticação e autorização das Aulas 13 e 14.
+  version: "1.1"
+  description: Autenticação, autorização e ciclo de sessões do GestãoAtiva.
 servers:
   - url: http://localhost:8080
 security:
@@ -10,7 +10,7 @@ security:
 paths:
   /auth/login:
     post:
-      summary: Autenticar e emitir um access token
+      summary: Iniciar uma família de sessão e emitir o par de tokens
       security: []
       requestBody:
         required: true
@@ -33,6 +33,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Erro'
+  /auth/refresh:
+    post:
+      summary: Consumir o refresh token e emitir o próximo par da família
+      description: Reapresentar uma geração consumida encerra toda a família.
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/Refresh'
+      responses:
+        '200':
+          description: Par rotacionado com o mesmo sid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '401':
+          description: Refresh token inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erro'
+  /auth/logout:
+    post:
+      summary: Encerrar a família identificada pelo refresh token
+      description: Operação idempotente. O access token continua válido até exp.
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/Refresh'
+      responses:
+        '204':
+          description: Solicitação processada, inclusive se a sessão já estiver encerrada
+  /auth/logout-global:
+    post:
+      summary: Encerrar todas as famílias do titular do Bearer
+      responses:
+        '204':
+          description: Sessões encerradas
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
   /usuarios:
     post:
       summary: Cadastrar uma conta PADRAO
@@ -234,6 +272,13 @@ paths:
         '404':
           $ref: '#/components/responses/NaoEncontrado'
 components:
+  requestBodies:
+    Refresh:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Refresh'
   securitySchemes:
     bearerAuth:
       type: http
@@ -294,19 +339,35 @@ components:
           type: string
           format: password
           writeOnly: true
+    Refresh:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          writeOnly: true
     Token:
       type: object
-      required: [tokenType, accessToken, expiresInMs, perfilAcesso]
+      required: [tokenType, accessToken, refreshToken, expiresIn, expiresInMs, perfilAcesso]
       properties:
         tokenType:
           type: string
           enum: [Bearer]
         accessToken:
           type: string
+        refreshToken:
+          type: string
+          description: Segredo opaco de uso único
+        expiresIn:
+          type: integer
+          format: int64
+          description: Validade do access token em segundos
+          example: 1800
         expiresInMs:
           type: integer
           format: int64
-          example: 86400000
+          description: Validade do access token em milissegundos para clientes existentes
+          example: 1800000
         perfilAcesso:
           $ref: '#/components/schemas/PerfilAcesso'
     Cadastro:

@@ -4,11 +4,18 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
+
+import jakarta.persistence.LockModeType;
 
 import com.projeto.sistemabancario.domains.entity.Usuario;
 import com.projeto.sistemabancario.domains.enums.PerfilAcesso;
 
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select u from Usuario u where u.id = :id")
+	Optional<Usuario> bloquearPorId(Long id);
 
 	Optional<Usuario> findByCpf(String cpf);
 

@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "GestãoAtiva | Aulas 13 e 14",
+    "name": "GestãoAtiva | Segurança e sessões",
     "description": "Use contas e banco locais descartáveis. Configure credenciais em variáveis locais do ambiente do Postman. Execute manualmente o cadastro e as operações de alteração de perfil.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -19,6 +19,18 @@
     },
     {
       "key": "token_admin",
+      "value": ""
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "refreshAnterior",
       "value": ""
     }
   ],
@@ -71,6 +83,8 @@
                   "    pm.test(\"Perfil da conta\", () => pm.expect(resposta.perfilAcesso).to.eql(\"PADRAO\"));",
                   "    pm.test(\"Token Bearer\", () => pm.expect(resposta.accessToken).to.be.a(\"string\").and.not.be.empty);",
                   "    pm.collectionVariables.set(\"token_padrao\", resposta.accessToken);",
+                  "    pm.collectionVariables.set(\"accessToken\", resposta.accessToken);",
+                  "    pm.collectionVariables.set(\"refreshToken\", resposta.refreshToken);",
                   "}"
                 ]
               }
@@ -122,6 +136,8 @@
                   "    pm.test(\"Perfil da conta\", () => pm.expect(resposta.perfilAcesso).to.eql(\"ADMIN\"));",
                   "    pm.test(\"Token Bearer\", () => pm.expect(resposta.accessToken).to.be.a(\"string\").and.not.be.empty);",
                   "    pm.collectionVariables.set(\"token_admin\", resposta.accessToken);",
+                  "    pm.collectionVariables.set(\"accessToken\", resposta.accessToken);",
+                  "    pm.collectionVariables.set(\"refreshToken\", resposta.refreshToken);",
                   "}"
                 ]
               }
@@ -298,6 +314,403 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
                 ]
               }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Ciclo de sessões",
+      "description": "Execute as chamadas de cada pasta na ordem indicada, com as credenciais PADRAO do ambiente local.",
+      "item": [
+        {
+          "name": "Rotação e replay",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/login",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{email_padrao}}\",\n  \"senha\": \"{{senha_padrao}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200) {",
+                      "    const resposta = pm.response.json();",
+                      "    pm.collectionVariables.set(\"accessToken\", resposta.accessToken);",
+                      "    pm.collectionVariables.set(\"refreshToken\", resposta.refreshToken);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Renovar e guardar a geração anterior",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/refresh",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200) {",
+                      "    pm.collectionVariables.set(\"refreshAnterior\", pm.collectionVariables.get(\"refreshToken\"));",
+                      "    const resposta = pm.response.json();",
+                      "    pm.collectionVariables.set(\"accessToken\", resposta.accessToken);",
+                      "    pm.collectionVariables.set(\"refreshToken\", resposta.refreshToken);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Reutilizar o refresh anterior",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/refresh",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshAnterior}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                      "if (pm.response.code === 401) {",
+                      "    pm.test(\"Mensagem genérica\", () => pm.expect(pm.response.json().mensagem).to.eql(\"Refresh token inválido ou expirado\"));",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Tentar renovar a geração atual após replay",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/refresh",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                      "if (pm.response.code === 401) {",
+                      "    pm.test(\"Mensagem genérica\", () => pm.expect(pm.response.json().mensagem).to.eql(\"Refresh token inválido ou expirado\"));",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Logout local",
+          "item": [
+            {
+              "name": "Login para logout local",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/login",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{email_padrao}}\",\n  \"senha\": \"{{senha_padrao}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200) {",
+                      "    const resposta = pm.response.json();",
+                      "    pm.collectionVariables.set(\"accessToken\", resposta.accessToken);",
+                      "    pm.collectionVariables.set(\"refreshToken\", resposta.refreshToken);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Encerrar a família",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/logout",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Renovar após logout local",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/refresh",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                      "if (pm.response.code === 401) {",
+                      "    pm.test(\"Mensagem genérica\", () => pm.expect(pm.response.json().mensagem).to.eql(\"Refresh token inválido ou expirado\"));",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Logout global",
+          "item": [
+            {
+              "name": "Login da primeira sessão",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/login",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{email_padrao}}\",\n  \"senha\": \"{{senha_padrao}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200) {",
+                      "    const resposta = pm.response.json();",
+                      "    pm.collectionVariables.set(\"accessToken\", resposta.accessToken);",
+                      "    pm.collectionVariables.set(\"refreshToken\", resposta.refreshToken);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login da segunda sessão",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/login",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{email_padrao}}\",\n  \"senha\": \"{{senha_padrao}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200) {",
+                      "    const resposta = pm.response.json();",
+                      "    pm.collectionVariables.set(\"accessToken\", resposta.accessToken);",
+                      "    pm.collectionVariables.set(\"refreshToken\", resposta.refreshToken);",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Encerrar sessões do titular",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/logout-global",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Renovar após logout global",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/refresh",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                      "if (pm.response.code === 401) {",
+                      "    pm.test(\"Mensagem genérica\", () => pm.expect(pm.response.json().mensagem).to.eql(\"Refresh token inválido ou expirado\"));",
+                      "}"
+                    ]
+                  }
+                }
+              ]
             }
           ]
         }

@@ -1,6 +1,7 @@
 package com.projeto.sistemabancario.config.security;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.Date;
 import java.util.UUID;
 
@@ -25,7 +26,10 @@ public class JwtService {
 	private final SecretKey signingKey;
 	private final JwtParser parser;
 
-	public JwtService(JwtProperties properties) {
+	private final Clock clock;
+
+	public JwtService(JwtProperties properties, Clock clock) {
+		this.clock = clock;
 		this.properties = properties;
 		String secret = properties.getSecret();
 		if (secret == null || secret.isBlank()) {
@@ -43,6 +47,7 @@ public class JwtService {
 		}
 		this.signingKey = new SecretKeySpec(keyBytes, "HmacSHA256");
 		var algoritmos = Jwts.parser()
+			.clock(() -> Date.from(clock.instant()))
 			.verifyWith(signingKey)
 			.requireIssuer(properties.getIssuer())
 			.sig();
@@ -55,13 +60,18 @@ public class JwtService {
 	}
 
 	public String gerarToken(Long usuarioId, String email, boolean ativo, PerfilAcesso perfilAcesso) {
-		long now = System.currentTimeMillis();
-		Date issuedAt = new Date(now);
-		Date expiresAt = new Date(now + properties.getExpirationMs());
+		return gerarToken(usuarioId, email, ativo, perfilAcesso, UUID.randomUUID());
+	}
+
+	public String gerarToken(Long usuarioId, String email, boolean ativo, PerfilAcesso perfilAcesso, UUID familiaId) {
+		var agora = clock.instant();
+		Date issuedAt = Date.from(agora);
+		Date expiresAt = Date.from(agora.plusMillis(properties.getExpirationMs()));
 		return Jwts.builder()
 			.issuer(properties.getIssuer())
 			.subject(String.valueOf(usuarioId))
 			.id(UUID.randomUUID().toString())
+			.claim("sid", familiaId.toString())
 			.claim("email", email)
 			.claim("ativo", ativo)
 			.claim("perfilAcesso", perfilAcesso.name())
@@ -81,6 +91,7 @@ public class JwtService {
 				|| claims.getId() == null || claims.getId().isBlank()
 				|| claims.getIssuedAt() == null || claims.getExpiration() == null
 				|| !claims.getExpiration().after(claims.getIssuedAt())
+				|| !clock.instant().isBefore(claims.getExpiration().toInstant())
 				|| claims.get("perfilAcesso", String.class) == null) {
 			throw new MalformedJwtException("Claims obrigatórias do JWT inválidas ou ausentes");
 		}

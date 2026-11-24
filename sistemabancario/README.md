@@ -128,7 +128,7 @@ Use um e-mail e um CPF de 11 dígitos ainda livres. A senha precisa ter pelo men
 
 ### OpenAPI e Postman
 
-Importe o contrato de segurança no Swagger Editor ou em outra ferramenta OpenAPI local. Para executar as chamadas no Postman, importe a coleção e configure `email_padrao`, `senha_padrao`, `email_admin` e `senha_admin` no ambiente local. Use contas de teste. O cadastro de exemplo usa `cpf_padrao`. Os exemplos de promoção e rebaixamento usam `usuario_alvo_id` e devem ser executados individualmente em um banco de teste.
+Importe o contrato de segurança no Swagger Editor ou em outra ferramenta OpenAPI local. No Postman, configure `email_padrao`, `senha_padrao`, `email_admin` e `senha_admin` para duas contas de teste existentes. Depois dos logins, execute a pasta de cadastro e alteração de perfil em ordem. A coleção gera e-mail, CPF e senha fictícios para uma nova conta e guarda `usuario_alvo_id` para a promoção e o rebaixamento.
 
 [Contrato OpenAPI](docs/seguranca.openapi.yaml) · [Coleção Postman](docs/seguranca.postman_collection.json)
 
@@ -198,14 +198,7 @@ Exibe saldo, total investido, valor de mercado, rentabilidade não realizada, lu
 
 ## Banco e Liquibase
 
-O schema é versionado pelo **Liquibase**. O changelog inicial possui 9 changesets: usuários, corretoras, ações, carteiras, posições, transações, histórico de cotações, constraints únicas e chaves estrangeiras.
-
-Após a primeira execução:
-```text
-Run: 0
-Previously run: 12
-Database is up to date, no changesets to execute
-```
+O **Liquibase** aplica 13 changesets em um banco novo. Os nove iniciais criam as tabelas do domínio, as restrições de unicidade e as chaves estrangeiras. Os quatro seguintes acrescentam o perfil de acesso, o controle das alterações administrativas, as sessões de refresh e a proteção de login com auditoria. Uma segunda execução preserva os changesets registrados.
 
 ## Como executar
 
@@ -237,6 +230,8 @@ npm run build
 ```
 
 ### Maven
+Ao iniciar diretamente com o perfil PostgreSQL, defina `POSTGRES_PASSWORD` e `APP_SECURITY_JWT_SECRET` no ambiente do processo.
+
 Windows:
 ```powershell
 .\mvnw.cmd spring-boot:run

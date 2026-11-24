@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "GestãoAtiva | Segurança e sessões",
-    "description": "Use contas e banco locais descartáveis. Configure credenciais em variáveis locais do ambiente do Postman. Execute manualmente o cadastro e as operações de alteração de perfil.",
+    "description": "Use contas e banco locais descartáveis. Configure as credenciais de PADRAO e ADMIN no ambiente do Postman. Após os logins, execute as chamadas da pasta de cadastro e alteração de perfil na ordem apresentada.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -747,7 +747,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nomeCompleto\": \"Conta de teste\",\n  \"cpf\": \"{{cpf_padrao}}\",\n  \"email\": \"{{email_padrao}}\",\n  \"senha\": \"{{senha_padrao}}\",\n  \"perfilInvestidor\": \"MODERADO\",\n  \"perfilAcesso\": \"ADMIN\"\n}",
+              "raw": "{\n  \"nomeCompleto\": \"Conta de teste\",\n  \"cpf\": \"{{cpf_usuario_alvo}}\",\n  \"email\": \"{{email_usuario_alvo}}\",\n  \"senha\": \"{{$guid}}\",\n  \"perfilInvestidor\": \"MODERADO\",\n  \"perfilAcesso\": \"ADMIN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -756,6 +756,19 @@
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.unset(\"usuario_alvo_id\");",
+                  "const id = pm.variables.replaceIn(\"{{$guid}}\");",
+                  "pm.variables.set(\"email_usuario_alvo\", \"alvo.\" + id + \"@example.test\");",
+                  "const cpf = Array.from({ length: 11 }, () => Math.floor(Math.random() * 10)).join(\"\");",
+                  "pm.variables.set(\"cpf_usuario_alvo\", cpf);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {

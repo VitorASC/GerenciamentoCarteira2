@@ -37,7 +37,7 @@ paths:
   /auth/refresh:
     post:
       summary: Consumir o refresh token e emitir o próximo par da família
-      description: Reapresentar uma geração consumida encerra toda a família.
+      description: A renovação exige um refresh token válido. Reapresentar uma geração consumida encerra toda a família.
       security: []
       requestBody:
         $ref: '#/components/requestBodies/Refresh'
@@ -48,8 +48,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Token'
+        '400':
+          description: Corpo JSON ilegível
         '401':
-          description: Refresh token inválido ou expirado
+          description: Corpo ausente ou nulo, ou refresh token ausente, nulo, vazio, desconhecido, expirado, revogado ou já utilizado.
           content:
             application/json:
               schema:
@@ -57,13 +59,15 @@ paths:
   /auth/logout:
     post:
       summary: Encerrar a família identificada pelo refresh token
-      description: Operação idempotente. O access token continua válido até exp.
+      description: Revoga a família identificada pelo refresh token. O access token já emitido continua válido até exp.
       security: []
       requestBody:
         $ref: '#/components/requestBodies/Refresh'
       responses:
         '204':
-          description: Solicitação processada, inclusive se a sessão já estiver encerrada
+          description: Operação idempotente. Também retorna 204 sem corpo de requisição, com corpo nulo, com token ausente, nulo, vazio ou desconhecido, ou com a família já encerrada.
+        '400':
+          description: Corpo JSON ilegível
   /auth/logout-global:
     post:
       summary: Encerrar todas as famílias do titular do Bearer
@@ -313,7 +317,7 @@ paths:
 components:
   requestBodies:
     Refresh:
-      required: true
+      required: false
       content:
         application/json:
           schema:
@@ -399,10 +403,12 @@ components:
           writeOnly: true
     Refresh:
       type: object
-      required: [refreshToken]
+      nullable: true
       properties:
         refreshToken:
           type: string
+          nullable: true
+          description: Token opaco de 43 caracteres em Base64 URL sem padding, recebido no login ou na renovação.
           writeOnly: true
     Token:
       type: object
@@ -444,6 +450,7 @@ components:
           type: string
           format: password
           minLength: 6
+          maxLength: 120
           writeOnly: true
         dataNascimento:
           type: string

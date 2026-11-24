@@ -1,5 +1,6 @@
 package com.projeto.sistemabancario.controller.advice;
 
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 
 import org.slf4j.Logger;
@@ -61,7 +62,9 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ErroResponse> integridadeDados(DataIntegrityViolationException ex, HttpServletRequest req) {
 		Throwable cause = ex.getMostSpecificCause();
 		String detalhe = cause != null ? cause.getMessage() : ex.getMessage();
-		log.warn("Violação de integridade ao persistir: {}", detalhe);
+		String sqlState = cause instanceof SQLException sql ? sql.getSQLState() : null;
+		log.warn("Falha ao persistir categoria=integridade sqlState={}",
+				sqlState != null && sqlState.matches("[0-9A-Z]{5}") ? sqlState : "indisponivel");
 		String mensagem = "Não foi possível concluir o cadastro (restrição do banco de dados). Verifique dados duplicados ou tamanho dos campos.";
 		if (detalhe != null && detalhe.contains("value too long")) {
 			mensagem = "Um ou mais campos retornados pelas APIs públicas excedem o limite de armazenamento. Tente novamente ou informe o suporte.";

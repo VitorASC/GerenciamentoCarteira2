@@ -1,6 +1,7 @@
 package com.projeto.sistemabancario.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -296,6 +297,17 @@ class AccessControlIntegrationTest {
 				.andExpect(status().isForbidden());
 
 		mockMvc.perform(get("/carteiras/" + carteiraOutro.getId()).header("Authorization", bearer(tokenAdmin)))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void credenciaisValidasComBasicRecebem401EBearerDoLoginPermiteAcesso() throws Exception {
+		String email = padrao.getEmail();
+		String accessToken = login(email, "PADRAO");
+		mockMvc.perform(get("/carteiras").with(httpBasic(email, SENHA)))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate", "Bearer"));
+		mockMvc.perform(get("/carteiras").header("Authorization", bearer(accessToken)))
 				.andExpect(status().isOk());
 	}
 
